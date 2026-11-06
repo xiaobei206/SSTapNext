@@ -59,7 +59,7 @@ if ($LASTEXITCODE -ne 0) { throw '前端构建失败。' }
 
 if (-not $NoPackage) {
     Write-Host '[6/8] 生成 Windows NSIS 安装包...' -ForegroundColor Cyan
-    & npm.cmd run dist:win 2>&1
+    & npm.cmd run dist:win -- --publish never 2>&1
     if ($LASTEXITCODE -ne 0) { throw 'Electron NSIS 打包失败。' }
 } else {
     Write-Host '[6/8] 跳过 NSIS 安装包生成（-NoPackage）。' -ForegroundColor Yellow
