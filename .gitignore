@@ -1,0 +1,13 @@
+node_modules/
+dist/
+release/
+*.log
+*.tmp
+*.user
+*.suo
+.vs/
+.vscode/
+**/bin/
+**/obj/
+runtime/sing-box/*.exe
+runtime/sing-box/*.dll

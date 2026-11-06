@@ -1,0 +1,7 @@
+﻿SSTap Next runtime dependency
+sing-box version: 1.14.4
+release tag: v1.14.4
+asset: sing-box-1.14.4-windows-amd64.zip
+asset SHA-256: 99185d75d314a07dbba4a130c8ad986cbeb629a07927975636b341ca61f991df
+installed executable SHA-256: 8F30682EE198855440D2A7FE070D5D3653793B2D01BB8C85EEA88F93BBE7C8B9
+source: https://github.com/SagerNet/sing-box/releases/tag/v1.14.4

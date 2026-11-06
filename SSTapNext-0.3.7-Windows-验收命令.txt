@@ -1,0 +1,13 @@
+SSTap Next 0.3.7 Windows 构建与验收
+
+# 在 Windows 10/11 x64、Node.js 22+、.NET 10 SDK 环境执行
+Set-ExecutionPolicy -Scope Process Bypass
+.\scripts\Build-Windows.ps1
+
+# 构建通过后安装 release\SSTap Next-0.3.7-x64.exe
+# 首先确认本地代理工作，再测试系统 TUN。
+# 连接 TUN → 正常断开 → 重新连接，至少连续 10 轮。
+# 每轮断开后如果适配器对象仍存在，但 Status=Down 且 Addresses=[]，应报告 TUN 已释放，不应 cleanup_error。
+# 若 Status=Up 或仍持有 172.19.0.1，则必须继续阻止接管并保留诊断日志。
+
+# 发布：在 GitHub 创建并发布 tag v0.3.7 的 Release；Windows release workflow 会自动构建并上传 EXE、blockmap 和 SHA-256。

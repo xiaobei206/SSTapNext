@@ -1,0 +1,90 @@
+{
+  "name": "sstap-next",
+  "productName": "SSTap Next",
+  "version": "0.3.7",
+  "private": true,
+  "description": "A modern SSTap-style Windows client powered by sing-box.",
+  "main": "apps/desktop/src/main/index.cjs",
+  "scripts": {
+    "dev": "vite --config apps/desktop/vite.config.ts",
+    "build": "tsc --noEmit -p apps/desktop/tsconfig.json && vite build --config apps/desktop/vite.config.ts",
+    "electron": "electron .",
+    "dev:desktop": "concurrently -k \"npm:dev\" \"wait-on tcp:5173 && npm run electron\"",
+    "test": "node --test --test-concurrency=1 src/shared/*.test.mjs",
+    "test:coverage": "node --test --test-concurrency=1 --experimental-test-coverage src/shared/*.test.mjs",
+    "agent:publish": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/Publish-Agent.ps1",
+    "dist:win": "electron-builder --win nsis --x64",
+    "doctor": "node scripts/doctor.mjs",
+    "validate:core": "node scripts/validate-singbox-configs.mjs",
+    "audit": "node scripts/doctor.mjs",
+    "verify:lock": "node scripts/verify-package-lock.mjs"
+  },
+  "dependencies": {
+    "react": "19.1.1",
+    "react-dom": "19.1.1"
+  },
+  "devDependencies": {
+    "@types/node": "22.18.6",
+    "@types/react": "19.1.12",
+    "@types/react-dom": "19.1.9",
+    "@vitejs/plugin-react": "5.0.4",
+    "concurrently": "9.2.1",
+    "electron": "45.2.1",
+    "electron-builder": "26.0.12",
+    "typescript": "5.9.2",
+    "vite": "7.1.7",
+    "wait-on": "8.0.4"
+  },
+  "build": {
+    "appId": "com.sstapnext.desktop",
+    "productName": "SSTap Next",
+    "asar": true,
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/renderer/**/*",
+      "apps/desktop/src/main/**/*",
+      "apps/desktop/src/preload/**/*",
+      "src/shared/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "runtime/sing-box",
+        "to": "sing-box",
+        "filter": [
+          "sing-box.exe",
+          "*.dll",
+          "DEPENDENCY.txt"
+        ]
+      },
+      {
+        "from": "artifacts/agent-win-x64",
+        "to": "agent",
+        "filter": [
+          "**/*"
+        ]
+      },
+      {
+        "from": "scripts/Start-Tun-Agent.ps1",
+        "to": "scripts/Start-Tun-Agent.ps1"
+      }
+    ],
+    "win": {
+      "target": [
+        "nsis"
+      ],
+      "requestedExecutionLevel": "asInvoker",
+      "artifactName": "${productName}-${version}-${arch}.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "deleteAppDataOnUninstall": false
+    }
+  }
+}
