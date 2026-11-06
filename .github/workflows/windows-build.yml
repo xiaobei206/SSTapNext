@@ -1,0 +1,66 @@
+name: Build Windows EXE
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: windows-build-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build SSTap Next Windows x64 installer
+    runs-on: windows-2022
+    timeout-minutes: 60
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Set up .NET 10 SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Install locked Node dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Build, test and package Windows installer
+        shell: pwsh
+        run: .\\scripts\\Build-Windows.ps1 -SkipInstall
+
+      - name: Verify installer and create SHA-256 file
+        shell: pwsh
+        run: |
+          $version = (node -p "require('./package.json').version").Trim()
+          $installer = Join-Path $PWD "release\\SSTap Next-$version-x64.exe"
+          $blockmap = "$installer.blockmap"
+          if (-not (Test-Path -LiteralPath $installer -PathType Leaf)) { throw "Installer missing: $installer" }
+          if (-not (Test-Path -LiteralPath $blockmap -PathType Leaf)) { throw "Blockmap missing: $blockmap" }
+          $hash = (Get-FileHash -LiteralPath $installer -Algorithm SHA256).Hash.ToLowerInvariant()
+          $hashFile = "$installer.sha256"
+          "$hash  $(Split-Path -Leaf $installer)" | Set-Content -LiteralPath $hashFile -Encoding ASCII
+          Write-Host "Installer: $installer"
+          Write-Host "Size: $((Get-Item -LiteralPath $installer).Length) bytes"
+          Write-Host "SHA-256: $hash"
+
+      - name: Upload installer artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: SSTapNext-${{ github.ref_name }}-Windows-x64
+          path: |
+            release/SSTap Next-*-x64.exe
+            release/SSTap Next-*-x64.exe.blockmap
+            release/SSTap Next-*-x64.exe.sha256
+          if-no-files-found: error
+          retention-days: 30
