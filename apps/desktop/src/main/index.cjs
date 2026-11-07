@@ -27,6 +27,7 @@ const SPEED_TEST_FALLBACK_URLS = [
   'https://speedtest.tele2.net/1GB.zip',
   'https://nbg1-speed.hetzner.com/1GB.bin',
 ];
+const TUN_RULE_SETTINGS_LOCKED_STATES = new Set(['requested', 'awaiting_uac', 'starting', 'running', 'stopping', 'cleanup_error']);
 
 let mainWindow;
 let stateCache;
@@ -456,8 +457,8 @@ ipcMain.handle('sstap:rule-library-get', async (event) => {
 ipcMain.handle('sstap:rule-library-update', async (event) => {
   assertTrustedRenderer(event);
   const tunStatus = getTunController().getStatus();
-  if (['requested', 'awaiting_uac', 'starting', 'running', 'stopping'].includes(tunStatus.status)) {
-    throw new Error('请先断开系统 TUN，再更新 SSTap 规则库；避免运行中的路由读取到版本切换。');
+  if (TUN_RULE_SETTINGS_LOCKED_STATES.has(tunStatus.status)) {
+    throw new Error('系统 TUN 尚未确认完全停止（' + tunStatus.status + '）；请先处理 TUN 状态，再更新 SSTap 规则库。');
   }
   return serializeMutation(async () => {
     const result = await updateSstapRuleLibrary(app.getPath('userData'));
@@ -538,6 +539,13 @@ ipcMain.handle('sstap:settings-save', async (event, patch) => {
     if (!Number.isInteger(hours) || hours < 1 || hours > 168) throw new Error('订阅刷新间隔必须在 1 至 168 小时之间');
     state.settings.autoRefreshHours = hours;
   }
+  const changesRoutingSettings = patch.mode !== undefined
+    || patch.customRulesText !== undefined
+    || patch.enabledRuleIds !== undefined;
+  if (changesRoutingSettings && TUN_RULE_SETTINGS_LOCKED_STATES.has(getTunController().getStatus().status)) {
+    throw new Error('系统 TUN 尚未确认完全停止；分流模式、自定义规则和 SSTap 游戏规则已锁定。');
+  }
+
   if (patch.customRulesText !== undefined) {
     const text = String(patch.customRulesText);
     const parsed = parseCustomRuleText(text);
@@ -546,10 +554,6 @@ ipcMain.handle('sstap:settings-save', async (event, patch) => {
   }
 
   if (patch.enabledRuleIds !== undefined) {
-    const tunStatus = getTunController().getStatus();
-    if (['requested', 'awaiting_uac', 'starting', 'running', 'stopping'].includes(tunStatus.status)) {
-      throw new Error('请先断开系统 TUN，再修改已启用的 SSTap 游戏规则。');
-    }
     if (!Array.isArray(patch.enabledRuleIds) || patch.enabledRuleIds.length > 190
       || patch.enabledRuleIds.some((id) => typeof id !== 'string' || !/^sstap-[a-f0-9]{16}$/.test(id))) {
       throw new Error('SSTap 规则选择数据无效');
