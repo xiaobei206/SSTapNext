@@ -64,7 +64,7 @@ test('parses RTT values when a Windows OEM-codepage prefix is garbled', () => {
   const output = [
     '��=45ms TTL=49',
     '��=43ms TTL=49',
-    '\\uFFFD\\uFFFD=43ms TTL=49',
+    '��=43ms TTL=49',
   ].join('\n');
   const parsed = parseIcmpOutput(output, '', 3);
   assert.equal(parsed.status, 'ok');
