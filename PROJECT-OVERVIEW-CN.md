@@ -2,18 +2,20 @@
 
 ## 1. 项目标识与当前状态
 
-- 项目根目录（文件库）：`/sstap/SSTapNext/`
-- main 分支当前版本：**0.3.12**，PR #1 已 Squash 合并，正式源码已进入 main。
-- `v0.3.12` 正式 Release 正由 main 推送后的 Windows 发布工作流构建/发布；以 Actions run 结果和 GitHub Releases 页面为准。
+- GitHub 仓库：`https://github.com/xiaobei206/SSTapNext`；main 是唯一可信开发线。
+- 当前程序版本：**0.3.12**；正式 Tag：`v0.3.12`；正式 Release 已发布：https://github.com/xiaobei206/SSTapNext/releases/tag/v0.3.12。
+- 0.3.12 功能代码进入 main 的发布 commit：`8f4be60d480e798bf3d17291230454df70674c86`。其后的 main 提交为交接/文档维护，不代表另一个程序版本；新对话必须动态检查 main 最新 SHA。
+- 0.3.12 Release 已含 Windows x64 安装程序、blockmap 和 SHA-256。发布工作流 run `42344552136`、Node CI run `42344552127` 均成功；PR 最新功能 HEAD 的 Node 86/86、package-lock 704/704、sing-box 55/55、Agent、TS/Vite、NSIS 构建也通过。
+- 0.3.12 增加原版 FQrabbit SSTap `.rules` 转换、规则库在线更新、分流页面规则管理、游戏规则叠加和优先级保护。**真实 TUN/Wintun、规则库运行时行为和节点公网链路仍需用户 Windows 设备验收**，见 `docs/WINDOWS-ACCEPTANCE.md`。
 - 近期用户确认真实功能可用的历史版本：**0.3.5**（用户反馈系统级代理/YouTube 已恢复正常；不可将此反馈外推为 0.3.12 的实机验收）。
-- 0.3.12 增加原版 FQrabbit SSTap `.rules` 转换、规则库在线更新、分流页面规则管理、游戏规则叠加和优先级保护。Node 86/86、依赖锁 704/704、sing-box 55/55、Windows x64 NSIS 构建均已在 PR 验证通过；真实 TUN/Wintun 循环仍需用户 Windows 设备验收。
-- 唯一可信开发入口：GitHub 仓库 `xiaobei206/SSTapNext` 的 `main`。这是个人项目，日常直接在 main 开发，不开 feature 分支、不建 PR；正式迭代递增版本号，main 提交触发 Windows 构建/Release，问题通过 GitHub Revert 回退。新对话先读根目录 `HANDOVER.md`，不要从旧 0.3.7 ZIP 拼接源码。
+- 新对话第一入口：根目录 `START HERE NEXT GPT.md`；随后读 `HANDOVER.md`、本文件和 `PROJECT-DEVELOPMENT-LOG-CN.md`。不要从旧 0.3.7 ZIP 拼接源码。
+- 用户明确要求的开发纪律：这是个人项目，日常直接在 main 开发，不新建 feature 分支或 PR；**每次开发必须先更新文档、写清目标/方案/验收/风险，再修改代码**；正式迭代递增版本号，main 提交触发 Windows 构建/Release，问题通过 GitHub Revert 回退。
 
 ## 2. 用途与功能
 
 SSTap Next 是 Windows 代理客户端，提供节点/订阅导入、sing-box 本地 SOCKS/HTTP mixed 代理、节点测速、Windows 系统级 TUN、全局/绕过中国大陆/自定义规则分流、DNS 地址族策略和手动 sing-box 核心升级。
 
-### 已实现功能基线（main 0.3.11 + PR #1 中的 0.3.12 增量；PR 未合并前不得把 0.3.12 当作正式 main 发布）
+### 当前 main 0.3.12 已实现功能基线
 
 - 节点协议：VLESS、Hysteria2、Shadowsocks SIP002、VMess、Trojan，以及已实现的 TLS/Reality/WebSocket/gRPC/混淆参数边界。
 - 订阅：单节点、多节点、Base64 列表、刷新、稳定 ID、来源管理、失败原子保留旧列表。
@@ -83,22 +85,37 @@ npm.cmd run validate:core
 
 ```text
 SSTapNext/
+  START HERE NEXT GPT.md          # 新对话唯一第一入口
+  README.md
+  HANDOVER.md
   PROJECT-OVERVIEW-CN.md
-  PROJECT-DEVELOPMENT-LOG-CN.md
-  0.3.0/ ... 0.3.12/            # 每版本独立源码 ZIP、HANDOFF、BUILD-REPORT、MANIFEST、SHA256、Windows验收命令
+  PROJECT-DEVELOPMENT-LOG-CN.md  # 唯一持续追加的开发日志
+  CHANGELOG.md
+  docs/
+    TEST-PLAN.md
+    WINDOWS-ACCEPTANCE.md
+    SSTAP-RULE-CONVERSION.md
+    GITHUB-RELEASES.md
+    RELEASE-X.Y.Z.md             # 每个正式版本一份发布说明
+  apps/                           # Electron 主进程、Preload、React UI
+  src/                            # shared Node 模块、.NET Agent
+  scripts/                        # 构建、校验、smoke test
+  runtime/                        # sing-box 核心
 ```
 
-GitHub 仓库 `xiaobei206/SSTapNext` 是当前源码的事实来源。版本归档与文件库历史副本只作为历史记录，不得覆盖或拼接当前 Git 分支。0.1.0/0.2.0 原始 ZIP 仍是未核验历史存档，不用作当前基线。
+GitHub main 是当前源码事实来源。文件库中的旧版本 ZIP 和历史归档只作为历史记录，不得覆盖或拼接当前 Git 分支。0.1.0/0.2.0 原始 ZIP 仍是未核验历史存档，不用作当前基线。
 
 ## 7. 新对话接手顺序
 
-1. 读 `PROJECT-OVERVIEW-CN.md`。
-2. 读唯一主日志 `PROJECT-DEVELOPMENT-LOG-CN.md`。
-3. 读 `HANDOVER.md`（0.3.12 当前交接）。
-4. 读取 main 最新 commit、版本号、最近 Actions 和 GitHub Release；不要依赖旧 PR 分支。
-5. 检查 `.rules` 解析器、ZIP 更新器、TUN route 顺序、Electron IPC、Renderer UI 和测试。
-6. 直接在 main 做小而可验证的提交；正式功能迭代先递增版本号并同步 package.json/package-lock/UI/Agent/doctor。
-7. main push 后确认 Node CI、Windows build 和 Release 都成功；出问题通过 GitHub Revert 回滚，不重写历史、不建立长期分支。随后仍需真实 Windows TUN/Wintun 验收。
+1. **先读根目录 `START HERE NEXT GPT.md`**，它是当前状态、实际 Release、未完成事项和操作规则的唯一第一入口。
+2. 读 `HANDOVER.md`，再读本文件 `PROJECT-OVERVIEW-CN.md`。
+3. 读唯一主日志 `PROJECT-DEVELOPMENT-LOG-CN.md`；历史条目按时间理解，最新状态覆盖旧的临时指令。
+4. 先实时读取 main 最新 commit、版本号、tag/release、最近 Actions 和各 job 结果；不要依赖旧 PR 分支。
+5. 按本轮任务读取 `docs/TEST-PLAN.md`、`docs/WINDOWS-ACCEPTANCE.md`、`docs/SSTAP-RULE-CONVERSION.md` 等专题文档，再读相关代码和测试。
+6. **先更新文档再开发**：写清目标、现状、方案、涉及文件、安全约束、验收标准、测试与回滚；之后才修改代码。开发中设计/范围变化要即时同步文档。
+7. 直接在 main 做小而可验证的提交；正式功能迭代先递增版本号并同步 package.json/package-lock/UI/Agent/doctor 等版本来源，补充 CHANGELOG 和 docs/RELEASE-X.Y.Z.md。
+8. main push 后确认对应 SHA 的 Node CI、Windows build 和 Release 都成功；出问题通过 GitHub Revert 回滚，不重写历史、不建立长期分支。随后仍需真实 Windows TUN/Wintun 验收。
+9. 上下文即将结束时，先更新 START HERE NEXT GPT.md、HANDOVER.md 和 PROJECT-DEVELOPMENT-LOG-CN.md，写明准确完成进度、测试证据和下一步唯一动作。
 
 ## 8. 证据等级
 
