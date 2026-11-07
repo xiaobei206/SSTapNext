@@ -182,6 +182,14 @@ class TunController {
     };
   }
 
+  isRuleLibraryMutationLocked() {
+    const status = this.getStatus().status;
+    // A pending recovery/start/stop may not have published its first status yet.
+    // Any retained session or in-flight transition means rule files must not rotate.
+    return Boolean(this.session || this.startPromise || this.stopPromise || this.recoveryPromise)
+      || ['requested', 'awaiting_uac', 'starting', 'running', 'stopping', 'cleanup_error'].includes(status);
+  }
+
   async _readAgentStatus(session) {
     try {
       const data = JSON.parse(await fs.readFile(session.statusPath, 'utf8'));
