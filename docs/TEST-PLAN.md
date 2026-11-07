@@ -1,3 +1,16 @@
+## 0.3.16 TUN Clash API allowlist hotfix (in progress)
+
+- [ ] Agent build passes and the new allowlist keeps root-level `endpoints` forbidden.
+- [ ] No `clash_api` still accepted for legacy-safe configs.
+- [ ] Loopback `127.0.0.1:<1..65535>` plus 64 hex secret accepted.
+- [ ] `0.0.0.0`, LAN IP, `::1`/IPv6, port 0/out of range, short/invalid secret, duplicate or extra fields all rejected.
+- [ ] Fixed sing-box v1.14.4 configuration matrix **58/58** and Node suite / lock validation pass.
+- [ ] Full Windows 10/11 x64 installer build genuinely runs (do not accept skipped build steps due to existing v0.3.15 release).
+- [ ] v0.3.16 EXE, blockmap, SHA-256 sidecar exist and asset digest matches build log.
+- [ ] Windows real device: TUN starts after UAC, telemetry updates, disconnect cleanup and direct-traffic attribution work (NOT RUN until user confirms).
+
+Design and release target: `docs/RELEASE-0.3.16.md`; root-level `endpoints` ban and all existing TUN safety policies must remain intact.
+
 ## 0.3.15 实时流量统计与 UI 可读性（已实现，待自动化和实机验证）
 
 设计依据：LIVE-TRAFFIC-AND-UI-READABILITY.md。运行时代码已推送 main；尚未将自动化、Windows 构建或实机验收标记为通过。
