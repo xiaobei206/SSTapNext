@@ -1,37 +1,25 @@
 # SSTap Next — 当前交接摘要（2026-11-07）
 
-> 本节优先级高于下方保留的 0.3.12/早期历史交接内容。正式发布基线为 0.3.13，当前 PING 修复目标为 0.3.14。
+> 本节优先级高于下方历史记录。当前正式版本 v0.3.14 已发布。
 
-- 仓库：`xiaobei206/SSTapNext`；唯一开发线 main；不使用日常 feature branch/PR；先文档后代码。
-- 最新正式 Release：v0.3.13，https://github.com/xiaobei206/SSTapNext/releases/tag/v0.3.13；Release commit `9d733967fb8c1280da6a1603b7ab9f733da6eccf`。
-- 当前 main 基线（本轮文档变更前）：`6f77a31d439aaac8a1c173198b570dc271cff85b`；package version 0.3.13。
-- 批量检测功能已在 0.3.13 发布：每批一个临时 sing-box、节点 loopback inbound/outbound 隔离、PING/TCPING/代理延迟/下载、节点并发 1/2/4/8/16/32；不修改 Windows 系统代理，不切换/断开现用主连接。
+- 仓库：`xiaobei206/SSTapNext`；仅 main 开发；不建立日常 feature 分支/PR；所有开发必须文档优先。
+- 当前 package version / Release：0.3.14 / https://github.com/xiaobei206/SSTapNext/releases/tag/v0.3.14
+- Release 构建 commit：`fab186b48b0597b76afc1a79dc6e7c1dd59dbe6b`；最新 main parser/test commit：`d0fbcd52c87aa94c60aeb054789e5fc786e71868`。
+- 本轮缺陷：0.3.13 批量 PING 把可达节点误判为超时。用户 PowerShell 原生 ping 65.49.237.84 得到 45/43/43ms、0% loss。
+- 根因：旧正则要求 `time` 或 `时间` 前缀；Windows OEM 中文前缀按 UTF-8 解码可能乱码。0.3.14 只按 ASCII RTT 分隔符、数字与 `ms` 提取；真实替换字符 fixture 已覆盖。
+- 自动验证：Node CI 98/98、lock 704/704；Windows Release 成功，sing-box 56/56，Agent/TS/Vite/NSIS/安装包 SHA 全部通过。
+- EXE：174,892,333 bytes；SHA-256 `61dc8bed3e08307e2b4d32105c0f5d539207ea10935d0bb552c0eb56b1abb007`。Blockmap 182,937 bytes；SHA-256 `91a246dd4120f4c33ce74e1bb4fb81f7205cfc6044d05bd904732a231447cb3d`。SHA sidecar 93 bytes；digest `463ce07f29966011507040624528a94c6a9ec56abd08a70afb1570c1bc9b1245`。Release API 确认三资产存在。
+- **仍待用户实机：** 安装 0.3.14 后对 65.49.237.84 批测，应显示约 43ms；再抽查其他可达/不可达节点。不可把 CI 作为实机验收。
+- 网络安全边界不变：不修改 Windows 系统代理、不操作主 CoreController/TUN、不切换/断开用户当前连接，不记录节点/订阅秘密。
 
-## 当前已确认缺陷：PING 全部显示超时
+## 0.3.14 PING 修复结论
 
-用户在 2026-11-07 提供 0.3.13 列表中 36 个节点 PING 全部超时的结果，并在同一 Windows PowerShell 终端执行：
+运行时代码只改 `src/shared/batch-node-test.cjs` 的 ICMP RTT 文本识别；测试只新增乱码前缀和 `<1ms` 覆盖。版本字段同步 0.3.14。0.3.14 Release 已有 EXE、blockmap、SHA sidecar。下一项工作是用户实机结果，不要重复实现本次修复。
 
-```powershell
-ping -n 3 -w 1000 65.49.237.84
-```
-
-系统返回三次成功：45ms、43ms、43ms，0% 丢包，平均 43ms。因此客户端结果是误报，不能再归因于该节点/服务器统一屏蔽 ICMP。
-
-源码定位：`src/shared/batch-node-test.cjs` 的 `parseIcmpOutput()` 只匹配 `time=...ms` 或 `时间=...ms`；`runIcmpPing()` 将子进程 chunk 直接用 UTF-8 解码。Windows ping 的中文输出可能使用系统 OEM 代码页，中文前缀解码乱码后正则漏掉有效 RTT，最后被归类为 timeout。
-
-### 0.3.14 修复方案（本节记录在改代码之前）
-
-1. RTT 改为不依赖语言前缀，识别 `[=<]\\s*(\\d+(?:\\.\\d+)?)\\s*ms`。Windows 英文 `time=43ms`、中文 `时间=43ms` 和乱码前缀后的 `=43ms` 均可解析；`<1ms` 仍计为 1ms。
-2. 保留丢包、域名解析失败、真实 timeout 和取消时等待 ping 子进程 close 的现有语义。
-3. 回归测试增加“乱码中文前缀 + ASCII RTT”的输入，并保留完整中英文、丢包、完全超时及取消用例。
-4. 版本升至 0.3.14；先文档后代码；同步 VERSION/package/package-lock/Agent/构建/UI显示中真实存在的版本源与 release docs。不得覆盖 v0.3.13。
-5. 0.3.14 验证：Node 全量测试、lock、sing-box 56 项、Windows Agent/TS/Vite/NSIS；用户实机对 65.49.237.84 确认约 43ms。
-
-安全边界不变：不修改系统代理，不动主 CoreController/TUN 生命周期，不触碰用户订阅/节点秘密；不把 CI 作为实机验收替代。
 
 ---
 
-# SSTap Next 0.3.12 — developer handover
+# SSTap Next — historical architecture and handover notes
 
 ## Current baseline
 

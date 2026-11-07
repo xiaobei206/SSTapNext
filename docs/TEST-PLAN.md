@@ -1,8 +1,8 @@
-# SSTap Next 0.3.13 — 测试计划与验证边界
+# SSTap Next 0.3.14 — 测试计划与验证边界
 
 ## 当前版本与 CI 范围
 
-- 当前正式版本为 0.3.13；Release：https://github.com/xiaobei206/SSTapNext/releases/tag/v0.3.13。上一正式版本为 v0.3.12。
+- 当前正式版本为 0.3.14；Release：https://github.com/xiaobei206/SSTapNext/releases/tag/v0.3.14。上一正式版本为 v0.3.13。
 - 这是个人项目，日常只在 main 开发，不建立 feature 分支或 PR。每项开发都必须先更新文档（目标、现状、设计、影响文件、安全约束、验收与测试），再修改代码；上下文结束前必须完成交接文档。
 - main 发布 commit：8f4be60d480e798bf3d17291230454df70674c86；该版本 Node CI run 42344552127、Windows Release run 42344552136 均成功。
 - 当前代码变更的验证证据：Node tests 86/86、package-lock 704/704、sing-box 55/55、Windows x64 Agent、TypeScript/Vite、NSIS 和 SHA-256 均通过。PR 最新功能 HEAD 的 run：42343664603 / 42343664600；main 发布 run：42344552127 / 42344552136。
@@ -110,3 +110,11 @@ Windows Build-Windows.ps1 使用本机 runtime/sing-box 中的真实核心执行
 - `runIcmpPing()` 仍须使用参数数组启动 ping.exe，取消后等待子进程 close；测试必须保留这个生命周期断言。
 - Windows 真实验收：批测 65.49.237.84，应显示约 43ms；系统代理、主连接、TUN 不受影响。
 - 全量发布验证：npm test、verify:lock（704 refs）、sing-box 56 项、Windows .NET Agent、TypeScript/Vite、NSIS、安装包 SHA-256；Actions 必须对应本次 0.3.14 commit。
+
+
+### 0.3.14 实际验证结果（2026-11-07）
+
+- Node CI run 42353385323，最新 parser/test commit `d0fbcd52c87aa94c60aeb054789e5fc786e71868`：**98/98 PASS**，0 fail。
+- package-lock 检查：**704/704 PASS**。
+- Windows Release run 42353296447 / job 128345843932：**success**；Build-Windows 中 sing-box **56/56 PASS**、Agent、TypeScript/Vite、NSIS、installer SHA 验证及 Release 上传成功。
+- 用户实机对 65.49.237.84 的批测 PING 复测仍 **NOT RUN**，须安装 0.3.14 后确认约 43ms。

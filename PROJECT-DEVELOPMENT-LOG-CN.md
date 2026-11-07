@@ -428,3 +428,25 @@
 ### 下一步唯一动作
 
 - 修改 `parseIcmpOutput()` 的 RTT 匹配为不依赖语言前缀的数值模式，并在 `batch-node-test.test.mjs` 添加模拟中文前缀乱码的回归测试；然后运行专项与全量 Node 测试。
+
+
+## 2026-11-07 — 0.3.14 PING 修复实现、CI 和 Release 完成
+
+### 代码与版本
+
+- `src/shared/batch-node-test.cjs`：RTT 从依赖 `time|时间` 前缀改为只依赖 ASCII `=` / `<`、数值和 `ms`，兼容 OEM 中文前缀被 UTF-8 解码成乱码。
+- `src/shared/batch-node-test.test.mjs`：新增实际替换字符乱码前缀多行回归 fixture，验证 45/43/43ms 平均 43.67ms 与 `<1ms`。
+- package.json/package-lock 根版本、Agent csproj/Program banner、Build-Windows 输出统一升级 0.3.14。
+- 运行时只改 ICMP 文本解析；不改批测调度、TCPING、代理延迟、下载测速、系统代理或 TUN 安全行为。
+
+### 验证与发布
+
+- Release build commit `fab186b48b0597b76afc1a79dc6e7c1dd59dbe6b`；最新 parser/test main commit `d0fbcd52c87aa94c60aeb054789e5fc786e71868`。
+- Node CI run 42353385323：success；npm test **98/98 PASS**，0 failures；verify:lock **704/704 PASS**。
+- Windows Release run 42353296447 / job 128345843932：success；sing-box **56/56 PASS**；Agent、TypeScript/Vite、NSIS、installer SHA 与 artifact upload 全部成功。
+- Release：https://github.com/xiaobei206/SSTapNext/releases/tag/v0.3.14；EXE 174892333 bytes，SHA-256 `61dc8bed3e08307e2b4d32105c0f5d539207ea10935d0bb552c0eb56b1abb007`；blockmap 182937 bytes，SHA-256 `91a246dd4120f4c33ce74e1bb4fb81f7205cfc6044d05bd904732a231447cb3d`；SHA sidecar 93 bytes，asset digest `463ce07f29966011507040624528a94c6a9ec56abd08a70afb1570c1bc9b1245`。Release API 核实三项真实存在。
+- Workflow artifact ID `13566382935`，175085295 bytes。
+
+### NOT RUN / 下一步
+
+- 用户尚未安装 0.3.14 实机复测；需对原目标 65.49.237.84 批量检测，确认列表 PING 约 43ms，与 PowerShell 原生 45/43/43ms 对照；抽查可达与不可达节点。CI 不能代替实机。
