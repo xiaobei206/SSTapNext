@@ -40,42 +40,19 @@
 ### 仓库与版本
 
 - GitHub：xiaobei206/SSTapNext
-- 当前开发入口：main
-- 当前开发 package version：0.3.13
-- 最新正式 Tag：v0.3.12
-- 正式 Release：https://github.com/xiaobei206/SSTapNext/releases/tag/v0.3.12
-- 0.3.12 功能代码发布 commit：8f4be60d480e798bf3d17291230454df70674c86
-- 0.3.12 已经发布，不是“等待构建”、不是“PR 尚未合并”。PR #1 已 Squash merge，仅属历史迁移记录。
-- 旧开发分支 feature/sstap-rule-library-0312 不再使用。不要从该分支继续开发，也不要把 PR 当成默认工作流程。
-- 文档提交会让 main 的 HEAD 晚于 Release 的代码目标 commit；这不代表程序版本发生变化。接手时务必动态读取 main 最新 SHA，不要把 Release target commit 当成 main 当前 HEAD。
+- 唯一开发入口：main；不新建 feature 分支或 PR。
+- 当前正式 Release：v0.3.13（2026-11-07），Release：https://github.com/xiaobei206/SSTapNext/releases/tag/v0.3.13
+- 当前已发布包版本：0.3.13；本轮 PING 修复目标版本：0.3.14。
+- 0.3.13 Release 目标 commit：`9d733967fb8c1280da6a1603b7ab9f733da6eccf`；其后 main 文档同步提交此前 HEAD 为 `6f77a31d439aaac8a1c173198b570dc271cff85b`。
+- 旧分支 `feature/sstap-rule-library-0312` 不再使用。PR #1 仅是历史迁移记录。
 
-### 0.3.12 Release 资产（GitHub API 已核实）
+### 最新已知自动化验证证据（0.3.13 Release）
 
-| 资产 | 大小 | SHA-256 |
-|---|---:|---|
-| SSTap.Next-0.3.12-x64.exe | 174,882,504 bytes | 42c700f4234b50e1ee31392d84d405954c3ad773aa8778201914900a792f3cdd |
-| SSTap.Next-0.3.12-x64.exe.blockmap | 182,676 bytes | 063d182a887807ba5e44d52af7668bf201728ab565dcb70f300a0270b5725723 |
-| SSTap.Next-0.3.12-x64.exe.sha256 | 93 bytes | 015472720e7834b5aa0c4ac45e0d247ee693e459d72f3a46033f37d27cb54f17 |
-
-安装包直链：  
-https://github.com/xiaobei206/SSTapNext/releases/download/v0.3.12/SSTap.Next-0.3.12-x64.exe
-
-### 最新已知自动化验证证据
-
-- PR 最新代码 HEAD b22ab5081f52a7fa57ddc8e583197ba634b7e69f：
-  - Node tests：**86/86 PASS**
-  - package-lock：**704/704 PASS**
-  - sing-box：**55/55 PASS**（54 组协议/模式/DNS + 1 组 SSTap local source Proxy/Direct 真实配置检查）
-  - Windows x64 Agent、TypeScript/Vite、NSIS 安装包和 SHA-256 构建通过。
-  - Node CI：https://github.com/xiaobei206/SSTapNext/actions/runs/42343664603
-  - Windows build：https://github.com/xiaobei206/SSTapNext/actions/runs/42343664600
-- 同一功能合入 main 的代码发布 commit 8f4be60d480e798bf3d17291230454df70674c86：
-  - Node CI run 42344552127：success
-  - Windows Release run 42344552136：success，创建 v0.3.12 并上传上表三个资产。
-- 后续文档提交当时的 main HEAD 9f47df51de7db1463a650126a69cdbcf62eb6970：
-  - CI run 42344692593：success
-  - Windows workflow run 42344692572：success。因为 v0.3.12 Release 已存在，这次文档 push 不会重建/覆盖同版本安装包。
-- 新对话仍需重新查询当前最新 HEAD 和最新 Actions。上述 run 是历史证据，不代表未来代码提交自动通过。
+- 0.3.13 Node CI：run `42352257931`、`42352323487` success；`npm test` 97/97 PASS，`npm run verify:lock` 704/704 PASS。
+- 0.3.13 Windows Release workflow：run `42352257898` / job `128342706123` success，真实执行 Build-Windows、sing-box 56/56、Agent、TypeScript/Vite、NSIS 安装包校验、Release 发布和 artifact 上传。
+- 正式安装包：`SSTap.Next-0.3.13-x64.exe`，SHA-256 `113105a99e5201f6f7a3013ee82ce8583bcc6f69f88fea9d969e35b52b15abcd`；Release API 已核实 EXE、blockmap、SHA-256 sidecar 三项资产。
+- 以上是 0.3.13 Release 的代码/构建证据；2026-11-07 当前 main 文档 HEAD `6f77a31d439aaac8a1c173198b570dc271cff85b` 的文档 push 工作流当时仍在运行，必须以实时状态为准。
+- 下一轮必须针对本次新 commit SHA 查看 Actions，不把旧 SHA 的成功 run 当成新代码验证。
 
 ### 重要验证边界
 
@@ -235,6 +212,20 @@ GitHub 最新状态每次都应现查：
 
 **v0.3.13 已正式发布**，Release 与三个资产见 `docs/RELEASE-0.3.13.md`。Node CI 97/97、lock 704/704、Windows 构建及 sing-box 56/56 均已通过。剩余用户 Windows 实机压力和安全验收必须单独执行，不可将 CI 结果当作通过。用户 Windows 10/11 实机的 1/2/4/8/16/32 并发压力/系统代理不变/活动连接隔离/取消清理仍未验收。
 
+### P0 — 0.3.14 修复批量 PING 全部误报超时（已由用户实测确认）
+
+复现事实（2026-11-07）：
+- 0.3.13 节点管理列表的 36 个节点 PING 全部显示“超时”。
+- 用户在同一 Windows PowerShell 机器直接执行 `ping -n 3 -w 1000 65.49.237.84`，得到 3/3 回复：45ms、43ms、43ms，0% 丢包，平均 43ms。
+- 因此至少该节点存在真实 ICMP 回包；“所有节点都屏蔽 ICMP”不是正确解释。问题定位到 `src/shared/batch-node-test.cjs` 的 RTT 文本识别：当前正则要求完整英文 `time` 或中文 `时间` 前缀，而 Windows 子进程输出的 OEM/系统代码页文本经 Node UTF-8 解码后，中文前缀可能乱码，导致有效数字 RTT 未识别并落入 timeout。
+
+修复约束：
+- PING RTT 改为识别数值前的 `=` 或 `<` 及其后的毫秒单位（如 `=43ms`、`<1ms`），不依赖英文/中文前缀及活动代码页。
+- 保留丢包统计、域名解析失败、全部真正超时和取消/等待子进程 close 语义；不改变 TCPING、代理延迟、下载测速和 TUN/系统代理安全边界。
+- 增加模拟中文前缀乱码的回归 fixture，另覆盖 `time=43ms`、`时间=43ms`、`<1ms`、丢包与真正 timeout。
+- 先文档后代码；正式修复升至 0.3.14，直接 main 开发，补 RELEASE-0.3.14.md，执行全量 Node CI、lock、sing-box 56 项和 Windows build，再发布 v0.3.14。
+- Windows 实机验收：使用用户上述命令所测的同一目标，确认应用显示约 43ms 而非超时；再抽查其他 ICMP 可达/不可达节点，确认状态有区分。
+
 ### P2 — 根据实测结果修复
 
 一旦发现问题：
@@ -305,3 +296,11 @@ GitHub 最新状态每次都应现查：
 - Workflow artifact：`SSTapNext-main-Windows-x64`，ID `13566081600`，175,084,704 bytes，尚未过期。
 - Release API 已核实三个资产均实际存在；安装程序 SHA-256 与 Windows 构建日志和 Release asset digest 一致。
 - **NOT RUN：** 用户 Windows 10/11 实机的 1/2/4/8/16/32 并发 CPU/内存/共享带宽压力、Windows 系统代理前后状态比对、正在使用的连接不被切换/中断、取消后进程/端口/临时配置完全清理，以及真实节点公网出口/协议连通性。不可用 CI 替代这些实测。
+
+
+## 0.3.14 PING 修复交接（2026-11-07，文档先行阶段）
+
+- 用户提供了 Windows PowerShell 原生 ping 输出，确认 65.49.237.84 三次 ICMP 回复（45/43/43ms，0% loss，平均 43ms），与 0.3.13 列表将其记为超时直接矛盾。
+- 初步根因：`parseIcmpOutput()` 严格依赖 `time|时间` 前缀；Windows 子进程输出的中文 OEM 代码页字节可能被 `chunk.toString('utf8')` 解码成乱码，尽管 ASCII 数字、`=`、`<` 和 `ms` 仍完整存在。
+- 修复：按 `[=<]数字ms` 提取 RTT；保留旧有丢包、DNS 错误和取消行为；新增乱码前缀测试。正式版本 0.3.14。
+- 本阶段只更新文档，运行时代码尚未修改；下一步修改 parser 和测试，再执行全量测试。

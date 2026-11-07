@@ -100,3 +100,13 @@ Windows Build-Windows.ps1 使用本机 runtime/sing-box 中的真实核心执行
 - Workflow artifact：`SSTapNext-main-Windows-x64`，ID `13566081600`，175,084,704 bytes，尚未过期。
 - Release API 已核实三个资产均实际存在；安装程序 SHA-256 与 Windows 构建日志和 Release asset digest 一致。
 - **NOT RUN：** 用户 Windows 10/11 实机的 1/2/4/8/16/32 并发 CPU/内存/共享带宽压力、Windows 系统代理前后状态比对、正在使用的连接不被切换/中断、取消后进程/端口/临时配置完全清理，以及真实节点公网出口/协议连通性。不可用 CI 替代这些实测。
+
+
+## 0.3.14 — Windows 中文 ping 输出编码回归
+
+- 用户真实证据：PowerShell `ping -n 3 -w 1000 65.49.237.84` 返回 45ms、43ms、43ms，0% 丢包，平均 43ms；0.3.13 列表却错误显示 PING 超时。
+- 新 parser 测试必须覆盖英文 `time=43ms`、中文 `时间=43ms`、OEM 中文前缀被 UTF-8 解码成乱码但仍保留 ASCII `=43ms`、`<1ms`、部分丢包、0 回复超时。
+- 核心断言：中文前缀损坏不能使有效 RTT 变成 timeout；接收数/平均 RTT/丢包率与回复条数一致；真正无回复仍为 timeout；DNS 失败仍为 error。
+- `runIcmpPing()` 仍须使用参数数组启动 ping.exe，取消后等待子进程 close；测试必须保留这个生命周期断言。
+- Windows 真实验收：批测 65.49.237.84，应显示约 43ms；系统代理、主连接、TUN 不受影响。
+- 全量发布验证：npm test、verify:lock（704 refs）、sing-box 56 项、Windows .NET Agent、TypeScript/Vite、NSIS、安装包 SHA-256；Actions 必须对应本次 0.3.14 commit。

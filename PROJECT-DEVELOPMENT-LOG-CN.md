@@ -396,3 +396,35 @@
 - Blockmap：`SSTap.Next-0.3.13-x64.exe.blockmap`，182868 bytes；SHA sidecar 93 bytes。Release API 核实三项资产存在，installer digest 与 build log 一致。
 - Workflow artifact：`SSTapNext-main-Windows-x64`，ID `13566081600`，175084704 bytes，尚未过期。
 - 用户 Windows 10/11 实机验收仍为 NOT RUN：1/2/4/8/16/32 并发 CPU/内存/带宽压力、系统代理状态不变、当前连接隔离、取消清理、真实节点公网出口/协议握手。
+
+
+## 2026-11-07 — 0.3.14 PING 全部误报超时：用户实测确认 / 文档先行
+
+### 用户复现证据
+
+- 用户在 0.3.13 节点列表对 36 个 VLESS 节点批量检测，PING 一律显示“超时”，但 TCPING/代理延迟/下载有大量成功结果。
+- 同一 Windows PowerShell 机器直接执行 `ping -n 3 -w 1000 65.49.237.84`，收到三次回复：45ms、43ms、43ms，0% 丢包，平均 43ms。
+- 已排除“该测试目标不响应 ICMP”；客户端 PING 显示属于确定性误报。
+
+### 源码初步定位
+
+- `src/shared/batch-node-test.cjs` 的 `parseIcmpOutput()` 仅匹配带完整英文 `time` 或中文 `时间` 前缀的 RTT。
+- `runIcmpPing()` 将 Windows child stdout/stderr chunk 直接调用 `toString('utf8')`。若 Windows ping.exe 的中文输出按 OEM 代码页写入 pipe，中文前缀会乱码；数字、标点和 `ms` 等 ASCII 内容仍可保留。
+- 由于解析到的 RTT 数量变成 0，解析器将结果判成 `timeout`。当前自动化测试只有正常 Unicode 中文字符串，遗漏了 Windows 子进程代码页不一致场景。
+
+### 文档先行方案（代码尚未修改）
+
+- 版本：0.3.14；不能覆盖 v0.3.13 Release。
+- parser 只依赖 RTT 值的 ASCII 结构：`[=<]\\s*(\\d+(?:\\.\\d+)?)\\s*ms`，不依赖前缀语言。此规则同时适用 `time=43ms`、`时间=43ms` 和乱码前缀 + `=43ms`。
+- 增加乱码前缀、`<1ms` 和多行混合/丢包的单元测试；保留 DNS 失败、真正超时与取消等待子进程 close。
+- 不改测速调度、TCPING、代理/下载测速、系统代理或 TUN 安全边界。
+- 用户 Windows 实机回归必须对 65.49.237.84 批测并确认约 43ms。
+
+### 文档先行提交
+
+- `docs/CONCURRENT-NODE-TESTING.md`、`docs/TEST-PLAN.md`、`START HERE NEXT GPT.md`、`HANDOVER.md` 与开发日志记录复现证据、定位、0.3.14 修复范围和验收标准。
+- 本阶段仅记录设计，不修改运行时源码。
+
+### 下一步唯一动作
+
+- 修改 `parseIcmpOutput()` 的 RTT 匹配为不依赖语言前缀的数值模式，并在 `batch-node-test.test.mjs` 添加模拟中文前缀乱码的回归测试；然后运行专项与全量 Node 测试。

@@ -53,3 +53,8 @@ Pushing to \`main\` runs Node regression tests and the Windows build workflow. F
 - An active TUN interface or one still holding the SSTap TUN address remains a blocking cleanup residual.
 - Rule-library updates and changes to enabled rule selections are blocked while system TUN is active or transitioning.
 - Do not manually delete network adapters or reset Windows networking to bypass a \`cleanup_error\`.
+
+
+## 0.3.14 maintenance
+
+A Windows ICMP parsing regression was confirmed by a real PowerShell comparison: native ping to `65.49.237.84` returned three replies (45/43/43 ms), while the 0.3.13 node list showed a timeout. The 0.3.14 maintenance release will make RTT parsing independent of localized text prefixes and add a regression test for garbled OEM-codepage text. This fix does not change proxy routing or Windows system proxy behavior.
