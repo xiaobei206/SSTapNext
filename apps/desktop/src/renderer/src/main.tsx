@@ -13,6 +13,35 @@ function formatBytes(value: number): string {
   return `${Math.round(value / 1_000_000)} MB`;
 }
 
+function formatTrafficBytes(value: number): string {
+  if (!Number.isFinite(value) || value < 0) return '—';
+  if (value < 1024) return Math.round(value) + ' B';
+  const units = ['KB', 'MB', 'GB', 'TB'];
+  let amount = value / 1024;
+  let index = 0;
+  while (amount >= 1024 && index < units.length - 1) { amount /= 1024; index += 1; }
+  return amount.toFixed(index === 0 ? 1 : 2) + ' ' + units[index];
+}
+
+function formatTrafficRate(value: number): string {
+  return formatTrafficBytes(value) + '/s';
+}
+
+function formatSessionDuration(startedAt?: string | null, sampledAt?: string, active = true): string {
+  const start = startedAt ? Date.parse(startedAt) : NaN;
+  const end = !active && sampledAt ? Date.parse(sampledAt) : Date.now();
+  if (!Number.isFinite(start) || !Number.isFinite(end) || end < start) return '—';
+  const seconds = Math.floor((end - start) / 1000);
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  const remainder = seconds % 60;
+  return hours > 0
+    ? String(hours).padStart(2, '0') + ':' + String(minutes).padStart(2, '0') + ':' + String(remainder).padStart(2, '0')
+    : String(minutes).padStart(2, '0') + ':' + String(remainder).padStart(2, '0');
+}
+
+type NodeSortKey = 'ping' | 'tcping' | 'proxyLatency' | 'download' | 'trafficUpload' | 'trafficDownload' | 'trafficTotal' | 'testedAt';
+
 function App() {
   const [page, setPage] = useState<Page>('home');
   const [state, setState] = useState<SstapState | null>(null);
@@ -29,6 +58,7 @@ function App() {
   const [batchTestProgress, setBatchTestProgress] = useState<SstapBatchTestProgress>({ status: 'completed', total: 0, completed: 0, failed: 0, active: 0 });
   const [coreStatus, setCoreStatus] = useState<SstapCoreStatus>({ status: 'disconnected', connected: false });
   const [tunStatus, setTunStatus] = useState<SstapTunStatus>({ status: 'disconnected', connected: false });
+  const [traffic, setTraffic] = useState<SstapTrafficSample | null>(null);
   const [tunBusy, setTunBusy] = useState(false);
   const [customRulesText, setCustomRulesText] = useState('');
   const [coreInfo, setCoreInfo] = useState<SstapCoreInfo>({ installed: false, executable: null, version: null, error: null });
@@ -48,6 +78,7 @@ function App() {
   useEffect(() => {
     const unsubscribeCore = window.sstap.onCoreEvent(setCoreStatus);
     const unsubscribeTun = window.sstap.onTunEvent(setTunStatus);
+    const unsubscribeTraffic = window.sstap.onTrafficEvent(setTraffic);
     const unsubscribeSpeed = window.sstap.onSpeedProgress(setSpeedProgress);
     const unsubscribeBatch = window.sstap.onBatchTestProgress((progress) => {
       setBatchTestProgress(progress);
@@ -89,6 +120,7 @@ function App() {
     return () => {
       unsubscribeCore();
       unsubscribeTun();
+      unsubscribeTraffic();
       unsubscribeSpeed();
       unsubscribeBatch();
     };
@@ -405,7 +437,7 @@ function App() {
         {notice && <div className="notice"><span>✓</span><div>{notice}</div><button onClick={() => setNotice('')}>×</button></div>}
         {error && <div className="error-banner"><span>!</span><div>{error}</div><button onClick={() => setError('')}>×</button></div>}
 
-        {page === 'home' && <HomePage state={state} selectedNode={selectedNode} onPage={setPage} coreStatus={coreStatus} tunStatus={tunStatus} tunBusy={tunBusy} toggleTun={toggleTunConnection} coreInfo={coreInfo} coreBusy={coreBusy} speedTestBusy={speedTestBusy || batchTestBusy} toggleConnection={toggleConnection} runSpeedTest={runSelectedSpeedTest} recheckCore={recheckCore} ruleLibraryBusy={ruleLibraryBusy} />}
+        {page === 'home' && <HomePage state={state} traffic={traffic} selectedNode={selectedNode} onPage={setPage} coreStatus={coreStatus} tunStatus={tunStatus} tunBusy={tunBusy} toggleTun={toggleTunConnection} coreInfo={coreInfo} coreBusy={coreBusy} speedTestBusy={speedTestBusy || batchTestBusy} toggleConnection={toggleConnection} runSpeedTest={runSelectedSpeedTest} recheckCore={recheckCore} ruleLibraryBusy={ruleLibraryBusy} />}
         {page === 'nodes' && <NodesPage state={state} importErrors={importErrors} busy={busy || coreBusy || speedTestBusy || batchTestBusy} importText={importText} setImportText={setImportText} pasteFromClipboard={pasteFromClipboard} importClipboard={importClipboard} subscriptionUrl={subscriptionUrl} setSubscriptionUrl={setSubscriptionUrl} subscriptionName={subscriptionName} setSubscriptionName={setSubscriptionName} addSubscription={addSubscription} refreshSubscription={refreshSubscription} deleteSubscription={deleteSubscription} selectedNodeId={selectedNodeId} setSelectedNodeId={setSelectedNodeId} activeNodeId={coreStatus.connected ? coreStatus.nodeId || '' : tunStatus.connected ? tunStatus.nodeId || '' : ''} removeNode={removeNode} batchSelectedNodeIds={batchSelectedNodeIds} toggleBatchNodeSelection={toggleBatchNodeSelection} batchConcurrency={batchConcurrency} setBatchConcurrency={setBatchConcurrency} downloadThreads={threads} setDownloadThreads={setThreads} saveBatchSettings={saveBatchSettings} batchTesting={batchTestBusy} batchProgress={batchTestProgress} startBatchNodeTest={startBatchNodeTest} cancelBatchNodeTest={cancelBatchNodeTest} />}
         {page === 'rules' && <RulesPage mode={state.settings.mode} saveMode={saveMode} busy={busy} customRulesText={customRulesText} setCustomRulesText={setCustomRulesText} saveCustomRules={saveCustomRules} tunConnected={tunStatus.connected || false} tunLocked={tunRulesLocked || ruleLibraryBusy} ruleLibrary={ruleLibrary} ruleLibraryBusy={ruleLibraryBusy} ruleSearch={ruleSearch} setRuleSearch={setRuleSearch} updateRuleLibrary={updateRuleLibrary} enabledRuleIds={state.settings.enabledRuleIds || []} toggleSstapRule={toggleSstapRule} />}
         {page === 'speed' && <SpeedPage speedUrl={speedUrl} setSpeedUrl={setSpeedUrl} speedBytes={speedBytes} setSpeedBytes={setSpeedBytes} threads={threads} setThreads={setThreads} save={saveSpeedSettings} busy={busy || batchTestBusy} selectedNode={selectedNode} runTest={runSelectedSpeedTest} testing={speedTestBusy} progress={speedProgress} latestResult={latestSpeedResult || state.speedResults?.[0] || null} history={state.speedResults || []} cancelTest={cancelSelectedSpeedTest} />}
@@ -417,6 +449,7 @@ function App() {
 
 function HomePage(props: {
   state: SstapState;
+  traffic: SstapTrafficSample | null;
   selectedNode: SstapNode | null;
   onPage: (page: Page) => void;
   coreStatus: SstapCoreStatus;
@@ -440,6 +473,16 @@ function HomePage(props: {
       : null;
   const shownNode = activeNode || props.selectedNode;
   const activeNodeId = connected ? props.coreStatus.nodeId : tunConnected ? props.tunStatus.nodeId : undefined;
+  const activeSessionId = connected ? props.coreStatus.sessionId : tunConnected ? props.tunStatus.sessionId : null;
+  const trafficSample = props.traffic && (!activeSessionId || props.traffic.sessionId === activeSessionId) ? props.traffic : null;
+  const trafficIsLive = Boolean(trafficSample?.active && trafficSample.status === 'ok');
+  const trafficRateUnavailable = Boolean(trafficSample?.active && trafficSample.status === 'unavailable');
+  const trafficCaption = connected ? '本地代理 · 当前节点' : tunConnected ? '系统 TUN · 本次流量含直连' : trafficSample ? '最近一次会话' : '连接成功后开始统计';
+  const trafficMessage = !trafficSample
+    ? (connected || tunConnected ? '等待首次统计数据…' : '连接成功后开始统计实时速度')
+    : trafficRateUnavailable ? '统计暂不可用，已保留累计数据，正在重试'
+      : trafficSample.active ? '正在实时统计本次会话流量' : '会话已结束，显示最终累计';
+  const trafficDuration = trafficSample ? formatSessionDuration(trafficSample.startedAt, trafficSample.sampledAt, trafficSample.active) : '—';
   const selectedDiffersFromActive = Boolean(activeNodeId && props.selectedNode && props.selectedNode.id !== activeNodeId);
   const actionLabel = connected ? '断开本地代理' : props.coreStatus.status === 'starting' ? '正在启动…' : '连接本地代理';
   const tunActionLabel = tunConnected ? '断开系统 TUN' : props.tunBusy || props.tunStatus.status === 'awaiting_uac' || props.tunStatus.status === 'starting' ? '正在启动系统接管…' : '启动系统级接管';
@@ -461,6 +504,22 @@ function HomePage(props: {
       <div className="connect-panel"><div><div className="muted-label">{connected ? '当前已连接节点' : '当前选择节点'}</div><div className="selected-node">{shownNode ? shownNode.name : (props.coreStatus.nodeName || '尚未选择节点')}</div><div className="node-subline">{shownNode ? `${shownNode.type.toUpperCase()} · ${shownNode.server}:${shownNode.server_port}` : '请先导入或选择一个节点'}</div>{selectedDiffersFromActive && <div className="next-node-hint">下一次连接目标：{props.selectedNode!.name}</div>}{tunConnected && <div className="local-proxy-address">系统 TUN 已启动：{props.tunStatus.mode || 'global'} · {props.tunStatus.interfaceName || 'SSTap Next'} · 节点公网连通性尚未验证</div>}{connected && <div className="local-proxy-address">SOCKS5 / HTTP：127.0.0.1:{props.coreStatus.proxyPort}</div>}</div><div className="connect-actions"><button className={`connect-button ${tunConnected ? 'connected' : 'ready'}`} disabled={tunButtonDisabled} title={tunButtonTitle} onClick={props.toggleTun}>{tunActionLabel} <span>{tunConnected ? '×' : '↗'}</span></button><button className={`button ${connected ? 'button-primary' : 'button-quiet'}`} disabled={props.coreBusy || props.tunBusy || props.speedTestBusy || (!props.selectedNode && !connected) || ['starting', 'stopping'].includes(props.coreStatus.status) || tunConnected} onClick={props.toggleConnection}>{actionLabel}</button><button className="button button-quiet" disabled={!props.selectedNode || props.coreBusy || props.tunBusy || props.speedTestBusy || !props.coreInfo.installed || (connected && props.coreStatus.nodeId !== props.selectedNode.id) || tunConnected} title={tunConnected ? '系统 TUN 已接管流量，无需另行测试本地代理' : undefined} onClick={props.runSpeedTest}>{props.speedTestBusy ? '测速中…' : '测试节点'}</button></div></div>{tunButtonDisabled && !tunConnected && <div className="connect-disabled-reason">{tunBlockedByCleanup ? '检测到上次 TUN 清理异常，已保护性锁定系统接管。请先处理错误状态。' : tunBlockedByMissingCore ? '尚未找到 sing-box 核心，请在软件设置中检查内核目录。' : !props.selectedNode ? '先导入并选择一个节点，系统接管按钮即可启动。' : connected ? '请先断开本地代理，再启动系统级接管。' : '当前操作尚未结束，请稍候再试。'}</div>}
       <div className="hero-foot"><span className={`status-pulse ${connected ? 'running' : ''}`}/>{connected ? `本机代理已监听 127.0.0.1:${props.coreStatus.proxyPort}；不会自动接管其他程序` : props.coreInfo.installed ? `核心已就绪：${props.coreInfo.version || 'sing-box'}` : '未找到 sing-box.exe；请先运行 scripts\\Fetch-SingBox.ps1'}</div>
       {props.coreStatus.status === 'error' && props.coreStatus.lastError && <div className="core-error-text">{props.coreStatus.lastError}</div>}{props.tunStatus.lastError && <div className="core-error-text">系统 TUN：{props.tunStatus.lastError}</div>}{props.tunStatus.logPath && <div className="helper-text">Agent 日志：{props.tunStatus.logPath}</div>}{!props.coreInfo.installed && <button className="button button-quiet core-recheck-button" disabled={props.coreBusy} onClick={props.recheckCore}>{props.coreBusy ? '正在检查…' : '重新检查 sing-box 核心'}</button>}{(props.coreStatus.logs?.length || 0) > 0 && <details className="core-log-details"><summary>查看核心日志（最近 {Math.min(props.coreStatus.logs?.length || 0, 12)} 行）</summary><pre>{props.coreStatus.logs?.slice(-12).join('\n')}</pre></details>}
+    </section>
+    <section className="traffic-card">
+      <div className="traffic-card-heading">
+        <div><div className="panel-title">本次流量</div><div className="panel-desc">{trafficCaption}</div></div>
+        <span className={`traffic-live-state ${trafficIsLive ? 'live' : trafficRateUnavailable ? 'unavailable' : ''}`}><i />{trafficIsLive ? '实时统计' : trafficRateUnavailable ? '统计暂不可用' : trafficSample?.active ? '正在连接' : trafficSample ? '已结束' : '等待连接'}</span>
+      </div>
+      <div className="traffic-rate-grid">
+        <div className="traffic-value-card"><span className="traffic-value-label"><i className="traffic-arrow download">↓</i>下载速度</span><b>{trafficIsLive ? formatTrafficRate(trafficSample!.downloadBps) : trafficRateUnavailable ? "暂不可用" : "—"}</b></div>
+        <div className="traffic-value-card"><span className="traffic-value-label"><i className="traffic-arrow upload">↑</i>上传速度</span><b>{trafficIsLive ? formatTrafficRate(trafficSample!.uploadBps) : trafficRateUnavailable ? "暂不可用" : "—"}</b></div>
+      </div>
+      <div className="traffic-total-grid">
+        <div><span>本次下载累计</span><b>{trafficSample ? formatTrafficBytes(trafficSample.downloadBytes) : "—"}</b></div>
+        <div><span>本次上传累计</span><b>{trafficSample ? formatTrafficBytes(trafficSample.uploadBytes) : "—"}</b></div>
+        <div><span>会话时长</span><b>{trafficDuration}</b></div>
+      </div>
+      <div className="traffic-card-foot">{trafficMessage}{trafficSample?.mode === "tun" ? " · TUN 总量包含直连流量" : trafficSample?.mode === "proxy" ? " · 本地代理节点流量" : ""}</div>
     </section>
     <section className="stats-grid">
       <div className="stat-card"><div className="stat-label">节点总数</div><div className="stat-number">{props.state.nodes.length}</div><div className="stat-foot">包含手动导入与订阅节点</div></div>
