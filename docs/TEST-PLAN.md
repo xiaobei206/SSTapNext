@@ -1,4 +1,4 @@
-# SSTap Next 0.3.12 — 测试计划与验证边界
+# SSTap Next 0.3.13 — 测试计划与验证边界
 
 ## 当前版本与 CI 范围
 
@@ -12,7 +12,7 @@
 - 上述 CI/构建证据不等于用户 Windows 10/11 实机验收；真实规则库行为、节点出口、DNS、UDP/QUIC、TUN/Wintun 仍按 WINDOWS-ACCEPTANCE.md 逐项记录。
 
 
-## 下一版 0.3.13：批量节点检测与测速（实施前已冻结设计）
+## 0.3.13：批量节点检测与测速（代码已实现；自动化/Windows 验证进行中）
 
 完整设计与当前基线见 [CONCURRENT-NODE-TESTING.md](CONCURRENT-NODE-TESTING.md)。
 
@@ -26,7 +26,7 @@
 
 Windows 实机必须进一步测试 1/2/4/8/16/32 并发的 CPU/内存/带宽、系统代理不变、用户活动连接不受影响、取消后的完整清理。500 Mbps 出口下同时下载会共享带宽，不能把并发速度直接与单节点串行峰值比较。
 
-当前 0.3.12 的 speedTestThreads 只是单节点下载 Range worker 数；0.3.13 将其扩展为 1/2/4/8/16/32，并另增 batchTestConcurrency（默认 4，同样支持 1/2/4/8/16/32）。单批最多 32 个节点；每批一个 sing-box 临时进程；每节点 loopback inbound 独立绑定自身 outbound。现阶段为实施设计定稿，未代表代码实现。
+0.3.13 已实现 speedTestThreads=单节点 Range worker 1/2/4/8/16/32，并另增 batchTestConcurrency=同时测速节点 1/2/4/8/16/32（默认 4）。单批最多 32 个节点；每批一个 sing-box 临时进程；每节点 loopback inbound 独立绑定自身 outbound；final=block；系统代理不变。
 
 ## SSTap .rules 转换与规则库
 
@@ -46,7 +46,7 @@ Windows Build-Windows.ps1 使用本机 runtime/sing-box 中的真实核心执行
 
 - 54 组基础组合：6 类节点协议 × 3 种分流模式 × 3 种 DNS 地址族策略。
 - 额外 1 组 SSTap 专项配置：加载两个真实格式的本地 source rule-set fixture，一个 Proxy、一个 Direct；检查规则顺序位于自动大陆规则和 GeoSite/GeoIP 之前。
-- 总计 55 次 sing-box check。若核心版本不同于默认下载基线，仍以当前核心实际校验结果为准。
+- 再额外 1 组多节点批测专项配置：两个 mixed loopback inbound、两个 node outbound，验证 route inbound 精确绑定、set_system_proxy=false 和 final=block。总计 56 次 sing-box check。若核心版本不同于默认下载基线，仍以当前核心实际校验结果为准。
 
 ## Windows 完整构建
 
@@ -54,7 +54,7 @@ Windows Build-Windows.ps1 使用本机 runtime/sing-box 中的真实核心执行
 
 1. Node.js 22、.NET 10 SDK 安装和 npm ci。
 2. package-lock 检查和 Node tests。
-3. 当前 sing-box 核心 55 项配置检查。
+3. 当前 sing-box 核心 56 项配置检查。
 4. .NET 10 win-x64 Agent 自包含发布。
 5. TypeScript / Vite 构建。
 6. Electron NSIS 安装包生成。
@@ -74,3 +74,12 @@ Windows Build-Windows.ps1 使用本机 runtime/sing-box 中的真实核心执行
 - 至少 10 轮 TUN connect → disconnect → reconnect；检查核心真实退出、路由/DNS 恢复和 Wintun 清理状态。
 
 **CI 通过、Windows 编译和 sing-box check 不等于真实节点握手或真实 TUN 已验收。** 若出现 cleanup_error、路由/DNS 残留或非预期物理网卡直连，立即停止后续接管测试；不得用删除未知网卡、route delete、重置 Winsock 或清空 DNS 来绕过保护。
+
+
+### 新增批量节点测速实际代码覆盖
+
+- src/shared/batch-node-test.test.mjs：ICMP/中文 Windows 输出、ping child 取消等待 close、TCPING、非 2 的幂次节点并发线程预算、loopback 多 inbound/outbound 路由、worker pool 并发/失败隔离/取消、两节点单进程集成、取消后临时配置清理。
+- src/shared/singbox-config.cjs：buildBatchProxyConfig；每节点 inbound tag/outbound tag 一一对应；final block；仅 127.0.0.1 且 set_system_proxy=false。
+- apps/desktop/src/main/index.cjs：可信 renderer IPC、节点 ID 校验、TUN 安全锁、nodeTestResults 加密持久化、节点删除结果清理、退出时取消并等待批测清理。
+- apps/desktop/src/renderer/src/main.tsx：节点页结果列、勾选/全选、同时测速数和 Range 线程参数、全部/选中、逐项进度、取消。
+- 以上为代码覆盖说明；实际通过数量和 Windows 构建结果必须以本次最新 main SHA 的 Actions logs 为准。用户 Windows 实机 1/2/4/8/16/32 压力测试、系统代理不变、活动连接隔离和取消清理仍 NOT RUN。
