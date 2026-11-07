@@ -50,6 +50,48 @@ function buildProxyConfig(node, options = {}) {
  * A TUN smoke-test configuration only. It is deliberately separate from the live TUN
  * configuration factory; auto_route remains false so smoke testing never takes over routes.
  */
+
+function buildBatchProxyConfig(entries, options = {}) {
+  if (!Array.isArray(entries) || entries.length < 1 || entries.length > 32) {
+    throw new Error('批量代理配置必须包含 1 至 32 个节点');
+  }
+  const seenIds = new Set();
+  const seenPorts = new Set();
+  const inbounds = [];
+  const outbounds = [];
+  const rules = [];
+  entries.forEach((entry, index) => {
+    const node = entry && entry.node;
+    if (!node || typeof node.id !== 'string' || !node.id) throw new Error('批量代理配置包含无效节点');
+    if (seenIds.has(node.id)) throw new Error('批量代理配置不允许重复节点');
+    seenIds.add(node.id);
+    const listenPort = assertPort(entry.listenPort, '批量测速本地端口');
+    if (seenPorts.has(listenPort)) throw new Error('批量测速本地端口不能重复');
+    seenPorts.add(listenPort);
+    const inboundTag = 'batch-test-in-' + index;
+    const outboundTag = 'batch-test-out-' + index;
+    inbounds.push({
+      type: 'mixed',
+      tag: inboundTag,
+      listen: '127.0.0.1',
+      listen_port: listenPort,
+      set_system_proxy: false,
+    });
+    outbounds.push(buildSingBoxOutbound(node, outboundTag));
+    rules.push({ inbound: [inboundTag], action: 'route', outbound: outboundTag });
+  });
+  return {
+    log: { level: options.logLevel || 'warn', timestamp: true },
+    inbounds,
+    outbounds: [...outbounds, { type: 'block', tag: 'block' }],
+    route: {
+      rules,
+      auto_detect_interface: true,
+      final: 'block',
+    },
+  };
+}
+
 function buildTunSmokeConfig(options = {}) {
   const name = String(options.interfaceName || 'SSTap Next Test').slice(0, 64);
   const node = options.node;
@@ -80,5 +122,6 @@ module.exports = {
   DEFAULT_PROXY_HOST,
   DEFAULT_PROXY_PORT,
   buildProxyConfig,
+  buildBatchProxyConfig,
   buildTunSmokeConfig,
 };
