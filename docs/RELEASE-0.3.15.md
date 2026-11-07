@@ -1,6 +1,6 @@
 # SSTap Next 0.3.15 — Release 记录
 
-<badge>已发布</badge>
+**状态：已发布**
 
 - Release：<https://github.com/xiaobei206/SSTapNext/releases/tag/v0.3.15>
 - 发布时间：2026-11-07 09:54:41 UTC
