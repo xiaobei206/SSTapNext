@@ -60,7 +60,7 @@ class TunController {
 
       const script = [
         "$ErrorActionPreference = 'Stop'",
-        "[Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false)",
+        "[Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)",
         "$requested = [guid]'" + normalizedId + "'",
         "$requestedPid = " + requestedPid,
         "try {",
