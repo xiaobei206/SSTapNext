@@ -159,7 +159,7 @@ test('quarantines the known 0.3.1 stop-signal cleanup lock without deleting evid
   await controller.disconnect();
 });
 
-test('recovers the 0.3.6/0.3.7 inactive Wintun cleanup false-positive using exact-GUID live inspection', async (t) => {
+test('recovers an inactive Wintun object using exact-GUID live inspection', async (t) => {
   const adapterId = '{8AC250D2-5056-026B-1DA1-96E3759C87AB}';
   let inspectedId = null;
   const { root, fake, controller } = await makeController({
@@ -168,6 +168,7 @@ test('recovers the 0.3.6/0.3.7 inactive Wintun cleanup false-positive using exac
       return {
         found: true, name: 'SSTap Next', description: 'sing-tun Tunnel #3', id: adapterId,
         status: 'Down', type: 53, addresses: [], expectedTunAddress: '172.19.0.1', operationallyActive: false,
+        processCheckComplete: true, singBoxProcessRunning: false,
       };
     },
   });
@@ -190,7 +191,7 @@ test('recovers the 0.3.6/0.3.7 inactive Wintun cleanup false-positive using exac
   assert.equal(started.status, 'running');
   assert.equal(inspectedId, adapterId);
   const existingFiles = await fs.readdir(staleDirectory);
-  assert.ok(existingFiles.includes('.verified-inactive-adapter-recovered-0.3.9'));
+  assert.ok(existingFiles.includes('.verified-inactive-adapter-recovered-0.3.10'));
   assert.ok(existingFiles.includes('status.cleanup_error-legacy.json'));
   assert.ok(existingFiles.includes('status.json'));
   assert.equal(existingFiles.includes('session.json'), false, 'the stale session lock metadata must be retired');
@@ -200,12 +201,81 @@ test('recovers the 0.3.6/0.3.7 inactive Wintun cleanup false-positive using exac
   await controller.disconnect();
 });
 
+test('retires an old cleanup_error only after two complete inspectors confirm the adapter and sing-box process are absent', async (t) => {
+  const adapterId = '{8AC250D2-5056-026B-1DA1-96E3759C87AB}';
+  let inspected = null;
+  const { root, fake, controller } = await makeController({
+    inspectAdapter: async (id, pid) => {
+      inspected = { id, pid };
+      return {
+        found: false, absent: true, inspectionComplete: true, matchCount: 0, relatedAdapters: [],
+        processId: 24372, processCheckComplete: true, singBoxProcessRunning: false,
+        id: adapterId, expectedTunAddress: '172.19.0.1', operationallyActive: false,
+        verificationSources: ['PowerShell Get-NetAdapter -IncludeHidden', '.NET NetworkInterface.GetAllNetworkInterfaces'],
+      };
+    },
+  });
+  t.after(async () => { fake.clear(); await fs.rm(root, { recursive: true, force: true }); });
+
+  const staleId = 'f'.repeat(32);
+  const staleDirectory = path.join(root, 'runtime', \`tun-\${staleId}\`);
+  await fs.mkdir(staleDirectory, { recursive: true });
+  const oldError = [
+    'sing-box PID 24372 已退出，但 TUN 接口 SSTap Next 在 18 秒后仍被检测为本次会话残留。',
+    \`适配器详情：Name=SSTap Next; Description=sing-tun Tunnel #3; Id=\${adapterId}; Status=Down; Type=53; Addresses=[]\`,
+  ].join('\n');
+  await fs.writeFile(path.join(staleDirectory, 'session.json'), JSON.stringify({ sessionId: staleId, interfaceName: 'SSTap Next' }));
+  await fs.writeFile(path.join(staleDirectory, 'status.json'), JSON.stringify({
+    sessionId: staleId, status: 'cleanup_error', corePid: null, interfaceName: 'SSTap Next', lastError: oldError,
+  }));
+  await fs.writeFile(path.join(staleDirectory, 'sing-box.log'), 'preserve-logs');
+
+  const started = await controller.connect(node, { mode: 'global' });
+  assert.equal(started.status, 'running');
+  assert.deepEqual(inspected, { id: adapterId, pid: 24372 });
+  const files = await fs.readdir(staleDirectory);
+  assert.ok(files.includes('.verified-absent-adapter-recovered-0.3.10'));
+  assert.ok(files.includes('status.cleanup_error-legacy.json'));
+  assert.equal(files.includes('session.json'), false);
+  assert.equal(await fs.readFile(path.join(staleDirectory, 'sing-box.log'), 'utf8'), 'preserve-logs');
+  const recovered = JSON.parse(await fs.readFile(path.join(staleDirectory, 'status.json'), 'utf8'));
+  assert.equal(recovered.status, 'stopped_with_warning');
+  assert.match(recovered.lastError, /已不存在/);
+  await controller.disconnect();
+});
+
+test('does not accept adapter absence when the historical PID is still sing-box or related adapters remain', async (t) => {
+  const adapterId = '{8AC250D2-5056-026B-1DA1-96E3759C87AB}';
+  for (const inspection of [
+    { found: false, absent: true, inspectionComplete: true, matchCount: 0, relatedAdapters: [], processCheckComplete: true, singBoxProcessRunning: true, expectedTunAddress: '172.19.0.1', operationallyActive: false, verificationSources: ['PowerShell Get-NetAdapter -IncludeHidden', '.NET NetworkInterface.GetAllNetworkInterfaces'] },
+    { found: false, absent: true, inspectionComplete: true, matchCount: 0, relatedAdapters: [{ name: 'SSTap Next', description: 'sing-tun Tunnel #3' }], processCheckComplete: true, singBoxProcessRunning: false, expectedTunAddress: '172.19.0.1', operationallyActive: false, verificationSources: ['PowerShell Get-NetAdapter -IncludeHidden', '.NET NetworkInterface.GetAllNetworkInterfaces'] },
+  ]) {
+    const { root, fake, controller } = await makeController({ inspectAdapter: async () => inspection });
+    const staleId = '9'.repeat(32);
+    const staleDirectory = path.join(root, 'runtime', \`tun-\${staleId}\`);
+    await fs.mkdir(staleDirectory, { recursive: true });
+    const oldError = [
+      'sing-box PID 24372 已退出，但 TUN 接口 SSTap Next 在 18 秒后仍被检测为本次会话残留。',
+      \`适配器详情：Name=SSTap Next; Description=sing-tun Tunnel #3; Id=\${adapterId}; Status=Down; Type=53; Addresses=[]\`,
+    ].join('\n');
+    await fs.writeFile(path.join(staleDirectory, 'session.json'), JSON.stringify({ sessionId: staleId, interfaceName: 'SSTap Next' }));
+    await fs.writeFile(path.join(staleDirectory, 'status.json'), JSON.stringify({
+      sessionId: staleId, status: 'cleanup_error', corePid: null, interfaceName: 'SSTap Next', lastError: oldError,
+    }));
+    await assert.rejects(controller.connect(node, { mode: 'global' }), /清理异常/);
+    assert.equal(fake.getSessionDirectory(), undefined);
+    fake.clear();
+    await fs.rm(root, { recursive: true, force: true });
+  }
+});
+
 test('does not recover an old cleanup_error when the same adapter is currently Up or addressed', async (t) => {
   const adapterId = '{8AC250D2-5056-026B-1DA1-96E3759C87AB}';
   const { root, fake, controller } = await makeController({
     inspectAdapter: async () => ({
       found: true, name: 'SSTap Next', description: 'sing-tun Tunnel #3', id: adapterId,
       status: 'Up', addresses: ['172.19.0.1'], expectedTunAddress: '172.19.0.1', operationallyActive: true,
+      processCheckComplete: true, singBoxProcessRunning: false,
     }),
   });
   t.after(async () => { fake.clear(); await fs.rm(root, { recursive: true, force: true }); });
