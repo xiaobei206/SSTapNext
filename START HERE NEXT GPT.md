@@ -4,7 +4,8 @@
 >
 > 仓库：https://github.com/xiaobei206/SSTapNext  
 > 唯一开发线：**main**  
-> 当前正式版本：**0.3.12**  
+> 当前开发版本：**0.3.13（开发/验收中）**  
+最新正式发布版本：**0.3.12**  
 > 本文件是新对话的第一入口；如果本文件与 GitHub 实际状态不一致，以实时仓库、Actions 和 Release 为准，并先修正文档。
 
 ---
@@ -206,19 +207,33 @@ GitHub 最新状态每次都应现查：
 
 记录用户测试输出时对 IP、订阅、节点和秘密做脱敏；不得要求用户公开节点密码/URL。
 
-### P1 — 下一版 0.3.13：批量节点检测与测速（需求已登记，尚未写代码）
 
-用户明确提出：
+### P1 — 0.3.13：批量节点检测与测速（代码已实现，发布验收中）
+
+用户确认的需求：
 - 节点管理列表直接显示 PING、TCPING、真实代理延迟、下载速度和最近检测时间。
-- 一键检测全部节点，也能只测选中的节点；逐节点实时回填；支持取消。
-- 批量并发节点数可选 1 / 2 / 4 / 8 / 16 / 32。
-- 用户使用 500 Mbps 宽带和约 10 MB 测速文件，希望多个节点一起测，保留每节点的独立测速结果。
-- 当前单节点测速的启动慢要优化；测速不得切换或修改 Windows 系统代理，也不得中断用户正在使用的节点。
+- 一键检测全部节点，或仅检测勾选节点；逐节点回填；支持取消。
+- 同时测速节点数 1 / 2 / 4 / 8 / 16 / 32。
+- 500 Mbps 宽带、常用 10 MB 测速文件；测试大小沿用“节点测速”页保存的 speedTestBytes 设置。
+- 测速不得改 Windows 系统代理，不得自动切换/断开用户当前节点；TUN 不安全时拒绝批测。
 
-**设计和当前实现分析已写入 docs/CONCURRENT-NODE-TESTING.md。新对话必须先读该文档。**
-现有 speedTestThreads 是单节点 HTTP Range 分段 worker 数，扩展至 1/2/4/8/16/32；另增 batchTestConcurrency（同时检测节点数，默认 4，也允许 1/2/4/8/16/32）。全局 Range worker 预算上限 64，防止两项设置相乘后过载。当前单节点测速调用主 CoreController.connect()，生成临时单节点 sing-box 配置、check、启动进程、等待本地 SOCKS5 就绪，下载后断开；mixed inbound 已明确 set_system_proxy=false，只监听 127.0.0.1。
-实现采用每批一个临时 sing-box 进程、多个 loopback inbound/outbound、inbound route 绑定 outbound；新 runner 不调用主 CoreController。PING 由 Windows ping.exe、TCPING 由 TCP socket；Hysteria2 TCPING=N/A。逐节点持久化结果。
-**当前只有设计文档，尚未写运行时代码，尚未升级 0.3.13，尚未发布。**
+当前实现：
+- 新模块 src/shared/batch-node-test.cjs；每批最多 32 个节点只启动一个临时 sing-box 进程，多个 loopback inbound 分别绑定对应 node outbound，final=block。
+- ICMP PING 通过 Windows ping.exe（三次，识别英文/中文输出）；TCPING 用 TCP socket；Hysteria2 的 TCPING=N/A。
+- 每节点独立 SOCKS inbound 做真实代理 HTTP 延迟和 Range 下载；复用现有测速源回退。
+- 新增 batchTestConcurrency（默认 4，1/2/4/8/16/32）；speedTestThreads 扩展为 1/2/4/8/16/32。Range 总 worker 预算不超过 64；非 2 的幂次节点数会向下选择合适的线程档位。
+- 新 IPC start/cancel/progress；逐节点结果加密持久化在 nodeTestResults（上限 512，保存时清理已删除节点）；节点页显示结果、全选/选中、进度与取消。
+- 批测不调用主 CoreController，不修改系统代理；TUN active/transition/cleanup_error 等状态由主进程阻止启动。
+
+重要文件：
+- docs/CONCURRENT-NODE-TESTING.md：当前实现架构、限制、实机验收清单。
+- src/shared/batch-node-test.cjs / batch-node-test.test.mjs：运行器与测试。
+- src/shared/singbox-config.cjs：多 inbound/outbound 测试配置。
+- apps/desktop/src/main/index.cjs、preload/index.cjs：IPC/持久化/生命周期。
+- apps/desktop/src/renderer/src/main.tsx、global.d.ts、style.css：节点列表 UI。
+- scripts/validate-singbox-configs.mjs：新增多节点真实核心配置校验；目标共 56 项（54 基础 + SSTap 规则 + batch config）。
+
+**当前正式 Release 仍是 0.3.12；0.3.13 Release 尚未发布。** 新对话接手必须先查 main 当前 SHA、对应 CI/Windows workflow 和 Release。用户 Windows 10/11 实机的 1/2/4/8/16/32 并发压力/系统代理不变/活动连接隔离/取消清理仍未验收。
 
 ### P2 — 根据实测结果修复
 
