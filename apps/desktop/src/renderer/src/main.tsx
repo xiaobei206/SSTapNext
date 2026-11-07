@@ -497,7 +497,7 @@ function NodesPage(props: {
   batchTesting: boolean; batchProgress: SstapBatchTestProgress;
   startBatchNodeTest: (scope: 'all' | 'selected') => void; cancelBatchNodeTest: () => void;
 }) {
-  const allSelected = props.state.nodes.length > 0 && props.batchSelectedNodeIds.length === props.state.nodes.length;
+  const allSelected = props.state.nodes.length > 0 && props.state.nodes.every((node) => props.batchSelectedNodeIds.includes(node.id));
   return <div className="page-stack">
     <div className="page-intro"><div><h2>节点管理</h2><p>把浏览器或订阅软件里的分享链接复制过来即可，不需要手动编辑配置文件。</p></div><span className="pill pill-green">已支持 5 类链接</span></div>
     <div className="two-column">
@@ -520,12 +520,13 @@ function NodesPage(props: {
           {props.batchTesting && <button className="button button-quiet danger-text" onClick={props.cancelBatchNodeTest}>取消检测</button>}
         </div>
       </div>
-      <div className="batch-explain">PING = ICMP；TCPING = TCP 端口连接；代理延迟和下载速度通过节点自身代理链路测试。Hysteria2 不适用 TCPING。系统代理不会被修改。</div>
+      <div className="batch-explain">本次下载量：{formatBytes(props.state.settings.speedTestBytes)}；测速地址和下载量沿用“节点测速”页设置。PING = ICMP；TCPING = TCP 端口连接；代理延迟和下载速度通过节点自身代理链路测试。Hysteria2 不适用 TCPING。系统代理不会被修改。</div>
       {props.batchTesting && <div className="batch-progress-card">
         <div className="batch-progress-top"><b>正在批量检测</b><span>{props.batchProgress.completed || 0} / {props.batchProgress.total || props.state.nodes.length} 完成 · {props.batchProgress.failed || 0} 个失败/部分结果</span></div>
         <div className="speed-progress-track"><div className="speed-progress-value" style={{ width: ((props.batchProgress.total || 0) > 0 ? Math.min(100, ((props.batchProgress.completed || 0) / (props.batchProgress.total || 1)) * 100) : 0) + '%' }} /></div>
-        <small>同时运行 {props.batchProgress.active || 0} 个节点 · 下载线程预算 64（每节点实际线程数由并发数限制）</small>
+        <small>同时运行 {props.batchProgress.active || 0} 个节点 · 有效并发 {props.batchProgress.effectiveConcurrency || props.batchProgress.concurrency || 0} · 每节点 {props.batchProgress.effectiveDownloadThreads || 1} 个 Range 线程（总预算 64）</small>
         {props.batchProgress.nodeName && <small>当前节点：{props.batchProgress.nodeName} · {props.batchProgress.metric || '准备中'}</small>}
+        {props.batchProgress.downloadProgress && <small>当前节点下载：{Math.round(props.batchProgress.downloadProgress.ratio * 100)}% · {formatBytes(props.batchProgress.downloadProgress.receivedBytes)} / {formatBytes(props.batchProgress.downloadProgress.totalBytes)}</small>}
       </div>}
       {props.state.nodes.length === 0 ? <div className="empty-state"><div className="empty-icon">◈</div><b>还没有节点</b><p>粘贴分享链接，或添加一条订阅开始使用。</p></div> : <div className="node-list batch-node-list">
         <div className="batch-node-head"><span></span><span></span><span>节点</span><span>PING</span><span>TCPING</span><span>代理延迟</span><span>下载</span><span>最近检测</span><span></span><span></span></div>
@@ -539,7 +540,7 @@ function NodesPage(props: {
             <div className="node-test-value"><small>TCPING</small><b>{formatNodeMetric(result?.tcping, 'tcping')}</b></div>
             <div className="node-test-value"><small>代理延迟</small><b>{formatNodeMetric(result?.proxyLatency, 'proxy')}</b></div>
             <div className="node-test-value"><small>下载速度</small><b>{formatNodeMetric(result?.download, 'download')}</b></div>
-            <div className="node-test-value node-test-time"><small>最近检测</small><b>{result?.testedAt ? new Date(result.testedAt).toLocaleTimeString() : '—'}</b></div>
+            <div className="node-test-value node-test-time"><small>最近检测</small><b>{result?.testedAt ? new Date(result.testedAt).toLocaleString() : '—'}</b></div>
             <div className="node-source">{node.sources?.some((source) => source.startsWith('subscription:')) ? (node.sources.includes('clipboard') ? '订阅 + 手动' : '订阅') : '手动'}</div>
             <button className="icon-button danger" title="删除节点" disabled={props.busy} onClick={(event) => { event.stopPropagation(); props.removeNode(node.id); }}>×</button>
           </div>;

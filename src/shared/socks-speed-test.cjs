@@ -291,7 +291,7 @@ function downloadOne(url, start, length, agent, timeoutMs, onBytes, signal, redi
     const client = parsedUrl.protocol === 'https:' ? https : http;
     request = client.request(parsedUrl, {
       method: 'GET', agent, headers: {
-        'User-Agent': 'SSTapNext-SpeedTest/0.3.7',
+        'User-Agent': 'SSTapNext-SpeedTest/0.3.13',
         'Accept-Encoding': 'identity',
         Connection: 'close',
         ...headers,

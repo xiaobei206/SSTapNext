@@ -113,12 +113,13 @@ declare global {
     failed?: number;
     active?: number;
     concurrency?: number;
+    effectiveConcurrency?: number;
     requestedDownloadThreads?: number;
     effectiveDownloadThreads?: number;
     nodeId?: string;
     nodeName?: string;
     metric?: string;
-    result?: SstapNodeTestResult;
+    result?: Partial<SstapNodeTestResult>;
     downloadProgress?: { receivedBytes: number; totalBytes: number; ratio: number; completedWorkers: number; threads: number; message?: string };
     message?: string;
     batchId?: string;
