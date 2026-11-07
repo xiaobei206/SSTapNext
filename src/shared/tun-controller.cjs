@@ -5,6 +5,7 @@ const path = require('node:path');
 const crypto = require('node:crypto');
 const { spawn } = require('node:child_process');
 const { buildTunConfig } = require('./tun-config.cjs');
+const { TrafficMonitor, createClashApiEndpoint } = require('./singbox-traffic.cjs');
 const { getEnabledSstapRuleSets } = require('./sstap-rule-library.cjs');
 
 function delay(ms) { return new Promise((resolve) => setTimeout(resolve, ms)); }
@@ -68,6 +69,7 @@ class TunController {
     this.getUserDataPath = options.getUserDataPath;
     this.getLauncherPath = options.getLauncherPath;
     this.spawnImpl = options.spawnImpl || spawn;
+    this.onTraffic = options.onTraffic || (() => {});
     this.powershellPath = options.powershellPath || 'powershell.exe';
     this.inspectAdapter = options.inspectAdapter || (async (adapterId, processId) => {
       const normalizedId = String(adapterId || '').replace(/[{}]/g, '');
@@ -221,6 +223,31 @@ class TunController {
   _stopHeartbeat(session) {
     if (session?.heartbeatTimer) clearInterval(session.heartbeatTimer);
     if (session) session.heartbeatTimer = null;
+  }
+
+  _startTrafficMonitor(session) {
+    if (!session || session.trafficMonitor) return;
+    try {
+      session.trafficMonitor = new TrafficMonitor({
+        endpoint: session.trafficEndpoint,
+        sessionId: session.sessionId,
+        mode: 'tun',
+        nodeId: session.node.id,
+        nodeName: session.node.name,
+        startedAt: session.startedAt,
+        onSample: this.onTraffic,
+      });
+      session.trafficMonitor.start();
+    } catch (error) {
+      try { this.onTraffic({ sessionId: session.sessionId, mode: 'tun', nodeId: session.node.id, status: 'unavailable', error: String(error.message || error), uploadBytes: 0, downloadBytes: 0, totalBytes: 0, uploadBps: 0, downloadBps: 0, final: false }); } catch { /* Ignore UI event failures. */ }
+    }
+  }
+
+  async _stopTrafficMonitor(session) {
+    const monitor = session?.trafficMonitor;
+    if (!monitor) return;
+    session.trafficMonitor = null;
+    await monitor.stop({ pollFinal: true });
   }
 
   async connect(node, settings = {}) {
@@ -456,11 +483,15 @@ class TunController {
       if (!value) throw new Error(`未找到 ${label}。请先完整构建/安装 Windows 运行组件。`);
     }
     const sessionId = crypto.randomBytes(16).toString('hex');
+    const trafficEndpoint = await createClashApiEndpoint();
     const directory = path.join(this.getUserDataPath(), 'runtime', `tun-${sessionId}`);
     await fs.mkdir(directory, { recursive: true, mode: 0o700 });
     const session = {
       sessionId,
       directory,
+      trafficEndpoint,
+      trafficMonitor: null,
+      startedAt: null,
       node: structuredClone(node),
       mode: settings.mode || 'global',
       configPath: path.join(directory, 'config.json'),
@@ -482,7 +513,7 @@ class TunController {
     try {
       await fs.mkdir(path.dirname(session.cachePath), { recursive: true });
       const importedRuleSets = await getEnabledSstapRuleSets(this.getUserDataPath(), settings.enabledRuleIds || [], session.mode);
-      const config = buildTunConfig(node, settings, { interfaceName: 'SSTap Next', logPath: session.logPath, cachePath: session.cachePath, importedRuleSets });
+      const config = buildTunConfig(node, settings, { interfaceName: 'SSTap Next', logPath: session.logPath, cachePath: session.cachePath, importedRuleSets, clashApi: trafficEndpoint });
       const configText = JSON.stringify(config, null, 2);
       const configSha256 = crypto.createHash('sha256').update(configText, 'utf8').digest('hex');
       await fs.writeFile(session.configPath, configText, { encoding: 'utf8', flag: 'wx', mode: 0o600 });
@@ -514,7 +545,11 @@ class TunController {
       while (Date.now() < deadline) {
         await delay(450);
         const status = await this._readAgentStatus(session);
-        if (status?.status === 'running') return this.getStatus();
+        if (status?.status === 'running') {
+          session.startedAt = status.updatedAt || new Date().toISOString();
+          this._startTrafficMonitor(session);
+          return this.getStatus();
+        }
         if (status && ['error', 'cleanup_error', 'stopped', 'stopped_with_warning'].includes(status.status)) {
           throw new Error(status.lastError || `系统 TUN 未能启动，Agent 状态：${status.status}`);
         }
@@ -523,6 +558,7 @@ class TunController {
       throw new Error('等待管理员 Agent 启动 TUN 超时。请检查 UAC 是否被取消，以及 Agent 日志。');
     } catch (error) {
       this._stopHeartbeat(session);
+      await this._stopTrafficMonitor(session).catch(() => {});
       try { await fs.writeFile(session.stopPath, `${sessionId}\n`, 'utf8'); } catch { /* Agent may not have started. */ }
       const cleanupDeadline = Date.now() + 12000;
       let finalStatus = null;
@@ -552,6 +588,7 @@ class TunController {
     this.stopPromise = (async () => {
       this._publish({ ...this.getStatus(), status: 'stopping', connected: false });
       this._stopHeartbeat(session);
+      await this._stopTrafficMonitor(session).catch(() => {});
       await fs.writeFile(session.stopPath, `${session.sessionId}\n`, 'utf8');
       const deadline = Date.now() + 30000;
       while (Date.now() < deadline) {
