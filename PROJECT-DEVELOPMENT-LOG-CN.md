@@ -215,3 +215,13 @@
 - 修改 routing mode/custom rules/enabledRuleIds 的设置操作，同样在 mutation queue 内检查 controller lock 和 updater flag。
 - Renderer 中，TUN start 按钮在规则更新期间禁用；分流和 DNS 设置在 cleanup_error 以及所有启动/停止过渡期间锁定。UI 是可用性提示，Electron IPC/controller 是强制安全边界。
 - 新增 3 条自动化回归：控制器启动/运行/正常停止期间锁定与解锁、cleanup_error 锁定、Electron/Renderer 互斥契约。当前最新 PR HEAD 的 CI 尚待运行完成；不得把旧 HEAD 的成功结果当作该补丁的验证证据。
+
+## 2026-11-07 — 0.3.12 合入 main 与个人项目开发流程调整
+
+- 用户明确要求：这是个人项目，日常不要再建立 feature 分支或 PR；GitHub main 作为唯一开发线，出问题用 Revert 回滚，正式版本用递增版本号 + Tag + Release 留档。
+- PR #1 已通过 Squash 合入 main；PR 状态 closed/merged。
+- main 发布提交：8f4be60d480e798bf3d17291230454df70674c86，标题 release: SSTap Next 0.3.12。
+- PR 合并前最新源代码 HEAD b22ab5081f52a7fa57ddc8e583197ba634b7e69f 的验证：Node 86/86、package-lock 704/704、sing-box 55/55、Windows x64 Agent/TS/Vite/NSIS 安装包/SHA-256/artifact 均通过。
+- main push 后 Node CI run 42344552127 已通过；Windows 正式 Release workflow run 42344552136 在本日志记录时仍处于 Build-Windows 步骤，Release v0.3.12 尚未从 GitHub Releases API 核实。必须再检查 run 状态、Release tag 与资产，不能只凭 workflow 已启动宣称已发布。
+- 后续开发规则：直接在 main 开始工作；任何正式用户可见功能迭代先升正式版本号并同步所有版本来源；提交 main；GitHub Actions 完成验证后创建 vX.Y.Z Release（EXE、blockmap、SHA-256）。若发现缺陷，在 main 直接修复并递增版本，必要时 Revert 错误提交，不创建长期 feature 分支。
+- GitHub PR #1 是本轮迁移遗留记录，不作为今后工作入口。旧分支 feature/sstap-rule-library-0312 未再接收提交；当前 GitHub connector 不提供删除 Git ref 的动作，因此该旧分支暂时保留但已停止使用。
