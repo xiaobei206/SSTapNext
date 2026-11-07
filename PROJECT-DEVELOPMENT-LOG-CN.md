@@ -502,3 +502,11 @@
 
 ### 当前下一步
 - 获取最新 main HEAD 的 GitHub Actions run 结果；失败则修复并重新核验，成功后更新 release docs / START HERE 证据。不要把未执行的 Windows 实机验收写成 PASS。
+
+## 2026-11-07 — 0.3.16 TUN Agent Clash API 白名单修复
+
+- 用户实测 0.3.15 启动 TUN 时报 `InvalidDataException: TUN 配置包含不允许的 endpoint 或外部控制接口。`。
+- 根因为 `ValidateRestrictedTunConfig()` 一律拒绝 `experimental.clash_api`；已添加严格白名单，根级 endpoints 仍禁止；只接受 loopback IPv4 + 有效端口 + 64 hex secret，Clash API 只允许两个字段且拒绝额外/重复字段。保留其余 TUN 路由、DNS、接口、缓存、哈希和清理安全校验。
+- 文档先行：`docs/RELEASE-0.3.16.md` 与设计文档增补已提交；版本下一步必须递增至 0.3.16，因为 v0.3.15 Release 已存在。
+- 0.3.15 后续 main SHA 的 Windows workflow run 42364620391 success，但 verify lock、build/package、installer SHA steps 都 skipped；不可当成新修复包验证通过。
+- 本节更新时 0.3.16 的完整自动化与安装包仍待执行；Windows 真机 TUN 再验也 NOT RUN。
