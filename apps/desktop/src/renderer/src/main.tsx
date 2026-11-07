@@ -23,6 +23,10 @@ function App() {
   const [busy, setBusy] = useState(false);
   const [coreBusy, setCoreBusy] = useState(false);
   const [speedTestBusy, setSpeedTestBusy] = useState(false);
+  const [batchTestBusy, setBatchTestBusy] = useState(false);
+  const [batchConcurrency, setBatchConcurrency] = useState('4');
+  const [batchSelectedNodeIds, setBatchSelectedNodeIds] = useState<string[]>([]);
+  const [batchTestProgress, setBatchTestProgress] = useState<SstapBatchTestProgress>({ status: 'completed', total: 0, completed: 0, failed: 0, active: 0 });
   const [coreStatus, setCoreStatus] = useState<SstapCoreStatus>({ status: 'disconnected', connected: false });
   const [tunStatus, setTunStatus] = useState<SstapTunStatus>({ status: 'disconnected', connected: false });
   const [tunBusy, setTunBusy] = useState(false);
@@ -45,6 +49,25 @@ function App() {
     const unsubscribeCore = window.sstap.onCoreEvent(setCoreStatus);
     const unsubscribeTun = window.sstap.onTunEvent(setTunStatus);
     const unsubscribeSpeed = window.sstap.onSpeedProgress(setSpeedProgress);
+    const unsubscribeBatch = window.sstap.onBatchTestProgress((progress) => {
+      setBatchTestProgress(progress);
+      if (progress.nodeId && progress.result) {
+        setState((current) => {
+          if (!current) return current;
+          const previous = current.nodeTestResults?.[progress.nodeId!] as SstapNodeTestResult | undefined;
+          const patch = progress.result!;
+          const merged: SstapNodeTestResult = {
+            testedAt: patch.testedAt || previous?.testedAt || new Date().toISOString(),
+            status: patch.status || previous?.status || 'testing',
+            ping: { ...(previous?.ping || { status: 'testing' as const }), ...(patch.ping || {}) },
+            tcping: { ...(previous?.tcping || { status: 'testing' as const }), ...(patch.tcping || {}) },
+            proxyLatency: { ...(previous?.proxyLatency || { status: 'testing' as const }), ...(patch.proxyLatency || {}) },
+            download: { ...(previous?.download || { status: 'testing' as const }), ...(patch.download || {}) },
+          };
+          return { ...current, nodeTestResults: { ...(current.nodeTestResults || {}), [progress.nodeId!]: merged } };
+        });
+      }
+    });
     window.sstap.getRuleLibrary().then(setRuleLibrary).catch((reason: unknown) => setError(String(reason)));
     window.sstap.getState()
       .then((result) => {
@@ -53,6 +76,7 @@ function App() {
         setSpeedUrl(result.settings.speedTestUrl);
         setSpeedBytes(String(result.settings.speedTestBytes));
         setThreads(String(result.settings.speedTestThreads));
+        setBatchConcurrency(String(result.settings.batchTestConcurrency || 4));
         setCustomRulesText(result.settings.customRulesText || '');
         if (result.speedResults?.[0]) setLatestSpeedResult(result.speedResults[0]);
         if (result.recoveryNotice) setNotice(result.recoveryNotice);
@@ -66,6 +90,7 @@ function App() {
       unsubscribeCore();
       unsubscribeTun();
       unsubscribeSpeed();
+      unsubscribeBatch();
     };
   }, []);
 
@@ -151,6 +176,50 @@ function App() {
       return;
     }
     await runAction(() => window.sstap.deleteNode(id), '节点已删除');
+  }
+
+  async function saveBatchSettings() {
+    await runAction(() => window.sstap.saveSettings({
+      batchTestConcurrency: Number(batchConcurrency),
+      speedTestThreads: Number(threads),
+    }), '批量测速参数已保存');
+  }
+
+  function toggleBatchNodeSelection(nodeId: string, selected: boolean) {
+    setBatchSelectedNodeIds((current) => selected
+      ? (current.includes(nodeId) ? current : [...current, nodeId])
+      : current.filter((id) => id !== nodeId));
+  }
+
+  async function startBatchNodeTest(scope: 'all' | 'selected') {
+    if (!state || batchTestBusy) return;
+    const nodeIds = scope === 'all'
+      ? state.nodes.map((node) => node.id)
+      : batchSelectedNodeIds.filter((id) => state.nodes.some((node) => node.id === id));
+    if (nodeIds.length === 0) {
+      setError(scope === 'all' ? '当前没有可检测的节点。' : '请先勾选需要检测的节点。');
+      return;
+    }
+    setBatchTestBusy(true);
+    setError('');
+    setBatchTestProgress({ status: 'starting', total: nodeIds.length, completed: 0, failed: 0, active: 0, concurrency: Number(batchConcurrency) });
+    try {
+      const result = await window.sstap.startBatchNodeTest({ nodeIds, concurrency: Number(batchConcurrency) });
+      const latest = await window.sstap.getState();
+      setState(latest);
+      setNotice(result.status === 'cancelled'
+        ? '批量检测已取消：完成 ' + result.completed + '/' + result.total + ' 个节点'
+        : '批量检测完成：' + result.completed + '/' + result.total + ' 个节点；失败/部分结果 ' + result.failed + ' 个；每节点实际下载线程 ' + result.effectiveDownloadThreads);
+    } catch (reason) {
+      setError(String(reason instanceof Error ? reason.message : reason));
+    } finally {
+      setBatchTestBusy(false);
+    }
+  }
+
+  async function cancelBatchNodeTest() {
+    try { await window.sstap.cancelBatchNodeTest(); }
+    catch (reason) { setError(String(reason instanceof Error ? reason.message : reason)); }
   }
 
   async function saveSpeedSettings() {
@@ -331,10 +400,10 @@ function App() {
         {notice && <div className="notice"><span>✓</span><div>{notice}</div><button onClick={() => setNotice('')}>×</button></div>}
         {error && <div className="error-banner"><span>!</span><div>{error}</div><button onClick={() => setError('')}>×</button></div>}
 
-        {page === 'home' && <HomePage state={state} selectedNode={selectedNode} onPage={setPage} coreStatus={coreStatus} tunStatus={tunStatus} tunBusy={tunBusy} toggleTun={toggleTunConnection} coreInfo={coreInfo} coreBusy={coreBusy} speedTestBusy={speedTestBusy} toggleConnection={toggleConnection} runSpeedTest={runSelectedSpeedTest} recheckCore={recheckCore} ruleLibraryBusy={ruleLibraryBusy} />}
-        {page === 'nodes' && <NodesPage state={state} importErrors={importErrors} busy={busy || coreBusy || speedTestBusy} importText={importText} setImportText={setImportText} pasteFromClipboard={pasteFromClipboard} importClipboard={importClipboard} subscriptionUrl={subscriptionUrl} setSubscriptionUrl={setSubscriptionUrl} subscriptionName={subscriptionName} setSubscriptionName={setSubscriptionName} addSubscription={addSubscription} refreshSubscription={refreshSubscription} deleteSubscription={deleteSubscription} selectedNodeId={selectedNodeId} setSelectedNodeId={setSelectedNodeId} activeNodeId={coreStatus.connected ? coreStatus.nodeId || '' : tunStatus.connected ? tunStatus.nodeId || '' : ''} removeNode={removeNode} />}
+        {page === 'home' && <HomePage state={state} selectedNode={selectedNode} onPage={setPage} coreStatus={coreStatus} tunStatus={tunStatus} tunBusy={tunBusy} toggleTun={toggleTunConnection} coreInfo={coreInfo} coreBusy={coreBusy} speedTestBusy={speedTestBusy || batchTestBusy} toggleConnection={toggleConnection} runSpeedTest={runSelectedSpeedTest} recheckCore={recheckCore} ruleLibraryBusy={ruleLibraryBusy} />}
+        {page === 'nodes' && <NodesPage state={state} importErrors={importErrors} busy={busy || coreBusy || speedTestBusy || batchTestBusy} importText={importText} setImportText={setImportText} pasteFromClipboard={pasteFromClipboard} importClipboard={importClipboard} subscriptionUrl={subscriptionUrl} setSubscriptionUrl={setSubscriptionUrl} subscriptionName={subscriptionName} setSubscriptionName={setSubscriptionName} addSubscription={addSubscription} refreshSubscription={refreshSubscription} deleteSubscription={deleteSubscription} selectedNodeId={selectedNodeId} setSelectedNodeId={setSelectedNodeId} activeNodeId={coreStatus.connected ? coreStatus.nodeId || '' : tunStatus.connected ? tunStatus.nodeId || '' : ''} removeNode={removeNode} batchSelectedNodeIds={batchSelectedNodeIds} toggleBatchNodeSelection={toggleBatchNodeSelection} batchConcurrency={batchConcurrency} setBatchConcurrency={setBatchConcurrency} downloadThreads={threads} setDownloadThreads={setThreads} saveBatchSettings={saveBatchSettings} batchTesting={batchTestBusy} batchProgress={batchTestProgress} startBatchNodeTest={startBatchNodeTest} cancelBatchNodeTest={cancelBatchNodeTest} />}
         {page === 'rules' && <RulesPage mode={state.settings.mode} saveMode={saveMode} busy={busy} customRulesText={customRulesText} setCustomRulesText={setCustomRulesText} saveCustomRules={saveCustomRules} tunConnected={tunStatus.connected || false} tunLocked={tunRulesLocked || ruleLibraryBusy} ruleLibrary={ruleLibrary} ruleLibraryBusy={ruleLibraryBusy} ruleSearch={ruleSearch} setRuleSearch={setRuleSearch} updateRuleLibrary={updateRuleLibrary} enabledRuleIds={state.settings.enabledRuleIds || []} toggleSstapRule={toggleSstapRule} />}
-        {page === 'speed' && <SpeedPage speedUrl={speedUrl} setSpeedUrl={setSpeedUrl} speedBytes={speedBytes} setSpeedBytes={setSpeedBytes} threads={threads} setThreads={setThreads} save={saveSpeedSettings} busy={busy} selectedNode={selectedNode} runTest={runSelectedSpeedTest} testing={speedTestBusy} progress={speedProgress} latestResult={latestSpeedResult || state.speedResults?.[0] || null} history={state.speedResults || []} cancelTest={cancelSelectedSpeedTest} />}
+        {page === 'speed' && <SpeedPage speedUrl={speedUrl} setSpeedUrl={setSpeedUrl} speedBytes={speedBytes} setSpeedBytes={setSpeedBytes} threads={threads} setThreads={setThreads} save={saveSpeedSettings} busy={busy || batchTestBusy} selectedNode={selectedNode} runTest={runSelectedSpeedTest} testing={speedTestBusy} progress={speedProgress} latestResult={latestSpeedResult || state.speedResults?.[0] || null} history={state.speedResults || []} cancelTest={cancelSelectedSpeedTest} />}
         {page === 'settings' && <SettingsPage state={state} coreInfo={coreInfo} tunLocked={tunRulesLocked || ruleLibraryBusy} saveDnsStrategy={saveDnsStrategy} openCoreFolder={openCoreFolder} />}
       </main>
     </div>
@@ -398,11 +467,32 @@ function HomePage(props: {
   </div>;
 }
 
+function formatNodeMetric(metric: SstapNodeTestMetric | undefined, kind: 'ping' | 'tcping' | 'proxy' | 'download'): string {
+  if (!metric) return '—';
+  if (metric.status === 'testing') return '检测中…';
+  if (metric.status === 'not-applicable') return '不适用';
+  if (metric.status === 'timeout') return '超时';
+  if (metric.status === 'error') return '失败';
+  if (kind === 'download') return Number.isFinite(metric.averageMbps) ? Number(metric.averageMbps).toFixed(1) + ' Mbps' : '—';
+  const value = kind === 'proxy' ? metric.latencyMs : metric.averageMs;
+  if (!Number.isFinite(value)) return '—';
+  const loss = kind === 'ping' && Number.isFinite(metric.lossPercent) && (metric.lossPercent || 0) > 0
+    ? ' · 丢包 ' + metric.lossPercent + '%'
+    : '';
+  return Math.round(Number(value)) + ' ms' + loss;
+}
+
 function NodesPage(props: {
   state: SstapState; importErrors: Array<{ line: number; message: string }>; busy: boolean; importText: string; setImportText: (v: string) => void; pasteFromClipboard: () => void; importClipboard: () => void;
   subscriptionUrl: string; setSubscriptionUrl: (v: string) => void; subscriptionName: string; setSubscriptionName: (v: string) => void; addSubscription: () => void; refreshSubscription: (id: string) => void; deleteSubscription: (id: string, name: string) => void;
   selectedNodeId: string; setSelectedNodeId: (v: string) => void; activeNodeId: string; removeNode: (id: string) => void;
+  batchSelectedNodeIds: string[]; toggleBatchNodeSelection: (id: string, selected: boolean) => void;
+  batchConcurrency: string; setBatchConcurrency: (value: string) => void;
+  downloadThreads: string; setDownloadThreads: (value: string) => void; saveBatchSettings: () => void;
+  batchTesting: boolean; batchProgress: SstapBatchTestProgress;
+  startBatchNodeTest: (scope: 'all' | 'selected') => void; cancelBatchNodeTest: () => void;
 }) {
+  const allSelected = props.state.nodes.length > 0 && props.batchSelectedNodeIds.length === props.state.nodes.length;
   return <div className="page-stack">
     <div className="page-intro"><div><h2>节点管理</h2><p>把浏览器或订阅软件里的分享链接复制过来即可，不需要手动编辑配置文件。</p></div><span className="pill pill-green">已支持 5 类链接</span></div>
     <div className="two-column">
@@ -410,7 +500,47 @@ function NodesPage(props: {
       <section className="panel-card subscription-card"><div className="panel-heading"><div><div className="panel-title">添加订阅</div><div className="panel-desc">订阅更新失败时保留上次成功导入的节点。</div></div><div className="subscription-symbol">↻</div></div><label>订阅名称（可选）</label><input className="text-input" placeholder="例如：机场 A / 自建节点" value={props.subscriptionName} onChange={(event) => props.setSubscriptionName(event.target.value)} /><label>订阅 URL</label><input className="text-input" placeholder="https://example.com/subscription" value={props.subscriptionUrl} onChange={(event) => props.setSubscriptionUrl(event.target.value)} /><button className="button button-primary full-width" disabled={props.busy || !props.subscriptionUrl.trim()} onClick={props.addSubscription}>{props.busy ? '正在获取…' : '获取订阅并导入'}</button><div className="security-note">订阅内容限制 4 MB，单次请求超时 20 秒；节点凭据通过 Windows 安全存储加密保存。</div></section>
     </div>
     {props.importErrors.length > 0 && <section className="panel-card parse-errors"><div className="panel-title">未能识别的内容（{props.importErrors.length} 条）</div>{props.importErrors.map((item, index) => <div className="parse-error-row" key={`${item.line}-${index}`}><b>第 {item.line} 行</b><span>{item.message}</span></div>)}</section>}
-    <section className="panel-card"><div className="panel-heading"><div><div className="panel-title">我的节点 <span className="count-badge">{props.state.nodes.length}</span></div><div className="panel-desc">选择节点可作为后续连接和测速的目标。</div></div></div>{props.state.nodes.length === 0 ? <div className="empty-state"><div className="empty-icon">◈</div><b>还没有节点</b><p>粘贴分享链接，或添加一条订阅开始使用。</p></div> : <div className="node-list">{props.state.nodes.map((node) => <div key={node.id} className={`node-row ${props.selectedNodeId === node.id ? 'selected' : ''} ${props.activeNodeId === node.id ? 'connected-node' : ''}`} onClick={() => props.setSelectedNodeId(node.id)}><div className="node-type-icon">{node.type === 'vless' ? 'V' : node.type === 'hysteria2' ? 'H' : node.type === 'shadowsocks' ? 'S' : node.type === 'vmess' ? 'M' : 'T'}</div><div className="node-info"><b>{node.name}</b><span>{node.type.toUpperCase()} · {node.server}:{node.server_port}</span></div><div className="node-source">{node.sources?.some((source) => source.startsWith('subscription:')) ? (node.sources.includes('clipboard') ? '订阅 + 手动' : '订阅') : '手动'}</div>{props.activeNodeId === node.id && <span className="node-active-tag">正在连接</span>}<button className="icon-button danger" title="删除节点" onClick={(event) => { event.stopPropagation(); props.removeNode(node.id); }}>×</button></div>)}</div>}</section>
+    <section className="panel-card">
+      <div className="panel-heading">
+        <div><div className="panel-title">我的节点 <span className="count-badge">{props.state.nodes.length}</span></div><div className="panel-desc">批量检测结果直接显示在这里；勾选节点可单独检测。</div></div>
+        <button className="button button-quiet" disabled={props.busy || props.state.nodes.length === 0} onClick={() => props.batchSelectedNodeIds.length === props.state.nodes.length ? props.toggleBatchNodeSelection('', false) : props.state.nodes.forEach((node) => props.toggleBatchNodeSelection(node.id, true))}>{allSelected ? '全不选' : '全选节点'}</button>
+      </div>
+      <div className="batch-toolbar">
+        <div className="batch-setting"><label>同时测速节点数</label><select className="text-input" value={props.batchConcurrency} disabled={props.busy} onChange={(event) => props.setBatchConcurrency(event.target.value)}>{['1','2','4','8','16','32'].map((value) => <option key={value} value={value}>{value} 个节点</option>)}</select></div>
+        <div className="batch-setting"><label>每节点下载线程</label><select className="text-input" value={props.downloadThreads} disabled={props.busy} onChange={(event) => props.setDownloadThreads(event.target.value)}>{['1','2','4','8','16','32'].map((value) => <option key={value} value={value}>{value} 线程</option>)}</select></div>
+        <button className="button button-quiet" disabled={props.busy} onClick={props.saveBatchSettings}>保存参数</button>
+        <div className="batch-actions">
+          <button className="button button-primary" disabled={props.busy || props.state.nodes.length === 0} onClick={() => props.startBatchNodeTest('all')}>一键全部测速</button>
+          <button className="button button-quiet" disabled={props.busy || props.batchSelectedNodeIds.length === 0} onClick={() => props.startBatchNodeTest('selected')}>测速选中（{props.batchSelectedNodeIds.length}）</button>
+          {props.batchTesting && <button className="button button-quiet danger-text" onClick={props.cancelBatchNodeTest}>取消检测</button>}
+        </div>
+      </div>
+      <div className="batch-explain">PING = ICMP；TCPING = TCP 端口连接；代理延迟和下载速度通过节点自身代理链路测试。Hysteria2 不适用 TCPING。系统代理不会被修改。</div>
+      {props.batchTesting && <div className="batch-progress-card">
+        <div className="batch-progress-top"><b>正在批量检测</b><span>{props.batchProgress.completed || 0} / {props.batchProgress.total || props.state.nodes.length} 完成 · {props.batchProgress.failed || 0} 个失败/部分结果</span></div>
+        <div className="speed-progress-track"><div className="speed-progress-value" style={{ width: ((props.batchProgress.total || 0) > 0 ? Math.min(100, ((props.batchProgress.completed || 0) / (props.batchProgress.total || 1)) * 100) : 0) + '%' }} /></div>
+        <small>同时运行 {props.batchProgress.active || 0} 个节点 · 下载线程预算 64（每节点实际线程数由并发数限制）</small>
+        {props.batchProgress.nodeName && <small>当前节点：{props.batchProgress.nodeName} · {props.batchProgress.metric || '准备中'}</small>}
+      </div>}
+      {props.state.nodes.length === 0 ? <div className="empty-state"><div className="empty-icon">◈</div><b>还没有节点</b><p>粘贴分享链接，或添加一条订阅开始使用。</p></div> : <div className="node-list batch-node-list">
+        <div className="batch-node-head"><span>节点</span><span>PING</span><span>TCPING</span><span>代理延迟</span><span>下载</span><span>最近检测</span></div>
+        {props.state.nodes.map((node) => {
+          const result = props.state.nodeTestResults?.[node.id];
+          return <div key={node.id} className={`node-row batch-node-row ${props.selectedNodeId === node.id ? 'selected' : ''} ${props.activeNodeId === node.id ? 'connected-node' : ''}`} onClick={() => props.setSelectedNodeId(node.id)}>
+            <input className="batch-node-checkbox" type="checkbox" checked={props.batchSelectedNodeIds.includes(node.id)} disabled={props.busy} onClick={(event) => event.stopPropagation()} onChange={(event) => props.toggleBatchNodeSelection(node.id, event.target.checked)} />
+            <div className="node-type-icon">{node.type === 'vless' ? 'V' : node.type === 'hysteria2' ? 'H' : node.type === 'shadowsocks' ? 'S' : node.type === 'vmess' ? 'M' : 'T'}</div>
+            <div className="node-info"><b>{node.name}</b><span>{node.type.toUpperCase()} · {node.server}:{node.server_port}</span>{props.activeNodeId === node.id && <span className="node-active-tag">正在连接</span>}</div>
+            <div className="node-test-value"><small>PING</small><b>{formatNodeMetric(result?.ping, 'ping')}</b></div>
+            <div className="node-test-value"><small>TCPING</small><b>{formatNodeMetric(result?.tcping, 'tcping')}</b></div>
+            <div className="node-test-value"><small>代理延迟</small><b>{formatNodeMetric(result?.proxyLatency, 'proxy')}</b></div>
+            <div className="node-test-value"><small>下载速度</small><b>{formatNodeMetric(result?.download, 'download')}</b></div>
+            <div className="node-test-value node-test-time"><small>最近检测</small><b>{result?.testedAt ? new Date(result.testedAt).toLocaleTimeString() : '—'}</b></div>
+            <div className="node-source">{node.sources?.some((source) => source.startsWith('subscription:')) ? (node.sources.includes('clipboard') ? '订阅 + 手动' : '订阅') : '手动'}</div>
+            <button className="icon-button danger" title="删除节点" disabled={props.busy} onClick={(event) => { event.stopPropagation(); props.removeNode(node.id); }}>×</button>
+          </div>;
+        })}
+      </div>}
+    </section>
     <section className="panel-card"><div className="panel-heading"><div><div className="panel-title">订阅管理 <span className="count-badge">{props.state.subscriptions.length}</span></div><div className="panel-desc">手动更新订阅；只有解析成功后才会合并新节点。</div></div></div>{props.state.subscriptions.length === 0 ? <div className="sub-empty">尚未添加订阅地址。</div> : <div className="subscription-list">{props.state.subscriptions.map((sub) => <div className="subscription-row" key={sub.id}><div className="sub-icon">↻</div><div className="sub-info"><b>{sub.name}</b><span>{sub.url}</span><small>{sub.nodeCount} 个节点 · 最近更新 {new Date(sub.updatedAt).toLocaleString()}</small>{sub.lastError && <small className="sub-error">上次更新失败：{sub.lastError}</small>}</div><div className="subscription-actions"><button className="button button-quiet" disabled={props.busy} onClick={() => props.refreshSubscription(sub.id)}>更新</button><button className="button button-quiet danger-text" disabled={props.busy} onClick={() => props.deleteSubscription(sub.id, sub.name)}>删除</button></div></div>)}</div>}</section>
   </div>;
 }
@@ -496,7 +626,7 @@ function SpeedPage(props: {
   cancelTest: () => void;
 }) {
   const ratio = Math.max(0, Math.min(1, props.progress.ratio || 0));
-  return <div className="page-stack"><div className="page-intro"><div><h2>节点测速</h2><p>通过所选节点的本地 SOCKS5 代理下载，不会绕过节点直接测速；结果按节点保存。</p></div><span className="pill pill-green">真实下载已接入</span></div><div className="two-column"><section className="panel-card"><div className="panel-heading"><div><div className="panel-title">测速参数</div><div className="panel-desc">所有节点使用相同的测速源、下载量和线程数。</div></div></div><label>测速文件 URL</label><input className="text-input" value={props.speedUrl} onChange={(event) => props.setSpeedUrl(event.target.value)} placeholder="https://example.com/1GB.bin" /><div className="helper-text">默认 Hetzner 1 GB 测试文件；主测速源被拒绝或不可用时，会自动尝试其他官方镜像。自定义地址建议支持 HTTP Range。</div><label>目标下载量</label><div className="preset-row"><button className={props.speedBytes === '10000000' ? 'preset active' : 'preset'} onClick={() => props.setSpeedBytes('10000000')}>10 MB</button><button className={props.speedBytes === '100000000' ? 'preset active' : 'preset'} onClick={() => props.setSpeedBytes('100000000')}>100 MB</button><button className={props.speedBytes === '500000000' ? 'preset active' : 'preset'} onClick={() => props.setSpeedBytes('500000000')}>500 MB</button></div><input className="text-input" type="number" min="1000000" max="1000000000" value={props.speedBytes} onChange={(event) => props.setSpeedBytes(event.target.value)} /><div className="helper-text">范围 1 MB 至 1 GB；测速流式读取，文件不会写入磁盘。</div><label>并发线程</label><select className="text-input" value={props.threads} onChange={(event) => props.setThreads(event.target.value)}><option value="1">单线程（推荐，观察单连接表现）</option><option value="2">2 线程</option><option value="4">4 线程</option><option value="8">8 线程</option></select><div className="form-row speed-action-row"><button className="button button-quiet" disabled={props.busy} onClick={props.save}>保存测速设置</button><button className="button button-primary" disabled={props.busy || props.testing || !props.selectedNode} onClick={props.runTest}>{props.testing ? '正在测速…' : '测试当前节点'}</button>{props.testing && <button className="button button-quiet danger-text" onClick={props.cancelTest}>取消测速</button>}</div><div className="security-note">测试期间如未连接该节点，软件会临时启动核心，完成后自动停止；若已连接同一节点则复用当前连接。</div></section><section className="panel-card speed-info"><div className="panel-heading"><div><div className="panel-title">测速结果</div><div className="panel-desc">{props.selectedNode ? `当前选择：${props.selectedNode.name}` : '请先选择一个节点'}</div></div></div>{props.testing && <div className="speed-progress-wrap"><div className="speed-progress-label"><span>{formatBytes(props.progress.receivedBytes || 0)} / {formatBytes(props.progress.totalBytes || Number(props.speedBytes) || 0)}</span><b>{Math.round(ratio * 100)}%</b></div><div className="speed-progress-track"><div className="speed-progress-value" style={{ width: `${ratio * 100}%` }} /></div><small>{props.progress.completedWorkers || 0} / {props.progress.threads || Number(props.threads) || 1} 个下载线程完成</small>{props.progress.message && <small className="speed-fallback-message">{props.progress.message}</small>}</div>}{props.latestResult ? <><div className="speed-result-hero"><div><span>平均下载速度</span><b>{props.latestResult.averageMbps.toFixed(2)} <small>Mbps</small></b></div><div className="speed-result-badge">{props.latestResult.threads} 线程</div></div><div className="metric-list"><div><span>峰值采样速度</span><b>{props.latestResult.peakMbps.toFixed(2)} Mbps</b></div><div><span>HTTP 响应延迟</span><b>{props.latestResult.latencyMs} ms</b></div><div><span>实际下载量</span><b>{formatBytes(props.latestResult.bytes)}</b></div><div><span>下载耗时</span><b>{(props.latestResult.elapsedMs / 1000).toFixed(2)} 秒</b></div><div><span>测速节点</span><b>{props.latestResult.nodeName}</b></div><div><span>测试源</span><b>{new URL(props.latestResult.url).hostname}</b></div><div><span>测试时间</span><b>{new Date(props.latestResult.testedAt).toLocaleString()}</b></div></div></> : <div className="empty-state speed-empty"><div className="empty-icon">↗</div><b>还没有测速结果</b><p>保存参数后，点击“测试当前节点”开始实际下载。</p></div>}{(props.progress.status === 'error' || props.progress.status === 'cancelled') && props.progress.message && <div className={props.progress.status === 'error' ? 'speed-error-text' : 'speed-cancel-text'}>{props.progress.message}</div>}{props.history.length > 0 && <div className="speed-history"><div className="panel-title">最近测速记录</div>{props.history.slice(0, 8).map((item, index) => <div className="speed-history-row" key={`${item.testedAt}-${item.nodeId}-${index}`}><div><b>{item.nodeName}</b><small>{new Date(item.testedAt).toLocaleString()} · {item.threads} 线程 · {formatBytes(item.bytes)}</small></div><div><strong>{item.averageMbps.toFixed(2)} Mbps</strong><small>{item.latencyMs} ms</small></div></div>)}</div>}</section></div></div>;
+  return <div className="page-stack"><div className="page-intro"><div><h2>节点测速</h2><p>通过所选节点的本地 SOCKS5 代理下载，不会绕过节点直接测速；结果按节点保存。</p></div><span className="pill pill-green">真实下载已接入</span></div><div className="two-column"><section className="panel-card"><div className="panel-heading"><div><div className="panel-title">测速参数</div><div className="panel-desc">所有节点使用相同的测速源、下载量和线程数。</div></div></div><label>测速文件 URL</label><input className="text-input" value={props.speedUrl} onChange={(event) => props.setSpeedUrl(event.target.value)} placeholder="https://example.com/1GB.bin" /><div className="helper-text">默认 Hetzner 1 GB 测试文件；主测速源被拒绝或不可用时，会自动尝试其他官方镜像。自定义地址建议支持 HTTP Range。</div><label>目标下载量</label><div className="preset-row"><button className={props.speedBytes === '10000000' ? 'preset active' : 'preset'} onClick={() => props.setSpeedBytes('10000000')}>10 MB</button><button className={props.speedBytes === '100000000' ? 'preset active' : 'preset'} onClick={() => props.setSpeedBytes('100000000')}>100 MB</button><button className={props.speedBytes === '500000000' ? 'preset active' : 'preset'} onClick={() => props.setSpeedBytes('500000000')}>500 MB</button></div><input className="text-input" type="number" min="1000000" max="1000000000" value={props.speedBytes} onChange={(event) => props.setSpeedBytes(event.target.value)} /><div className="helper-text">范围 1 MB 至 1 GB；测速流式读取，文件不会写入磁盘。</div><label>并发线程</label><select className="text-input" value={props.threads} onChange={(event) => props.setThreads(event.target.value)}><option value="1">单线程（推荐，观察单连接表现）</option><option value="2">2 线程</option><option value="4">4 线程</option><option value="8">8 线程</option><option value="16">16 线程</option><option value="32">32 线程</option></select><div className="form-row speed-action-row"><button className="button button-quiet" disabled={props.busy} onClick={props.save}>保存测速设置</button><button className="button button-primary" disabled={props.busy || props.testing || !props.selectedNode} onClick={props.runTest}>{props.testing ? '正在测速…' : '测试当前节点'}</button>{props.testing && <button className="button button-quiet danger-text" onClick={props.cancelTest}>取消测速</button>}</div><div className="security-note">测试期间如未连接该节点，软件会临时启动核心，完成后自动停止；若已连接同一节点则复用当前连接。</div></section><section className="panel-card speed-info"><div className="panel-heading"><div><div className="panel-title">测速结果</div><div className="panel-desc">{props.selectedNode ? `当前选择：${props.selectedNode.name}` : '请先选择一个节点'}</div></div></div>{props.testing && <div className="speed-progress-wrap"><div className="speed-progress-label"><span>{formatBytes(props.progress.receivedBytes || 0)} / {formatBytes(props.progress.totalBytes || Number(props.speedBytes) || 0)}</span><b>{Math.round(ratio * 100)}%</b></div><div className="speed-progress-track"><div className="speed-progress-value" style={{ width: `${ratio * 100}%` }} /></div><small>{props.progress.completedWorkers || 0} / {props.progress.threads || Number(props.threads) || 1} 个下载线程完成</small>{props.progress.message && <small className="speed-fallback-message">{props.progress.message}</small>}</div>}{props.latestResult ? <><div className="speed-result-hero"><div><span>平均下载速度</span><b>{props.latestResult.averageMbps.toFixed(2)} <small>Mbps</small></b></div><div className="speed-result-badge">{props.latestResult.threads} 线程</div></div><div className="metric-list"><div><span>峰值采样速度</span><b>{props.latestResult.peakMbps.toFixed(2)} Mbps</b></div><div><span>HTTP 响应延迟</span><b>{props.latestResult.latencyMs} ms</b></div><div><span>实际下载量</span><b>{formatBytes(props.latestResult.bytes)}</b></div><div><span>下载耗时</span><b>{(props.latestResult.elapsedMs / 1000).toFixed(2)} 秒</b></div><div><span>测速节点</span><b>{props.latestResult.nodeName}</b></div><div><span>测试源</span><b>{new URL(props.latestResult.url).hostname}</b></div><div><span>测试时间</span><b>{new Date(props.latestResult.testedAt).toLocaleString()}</b></div></div></> : <div className="empty-state speed-empty"><div className="empty-icon">↗</div><b>还没有测速结果</b><p>保存参数后，点击“测试当前节点”开始实际下载。</p></div>}{(props.progress.status === 'error' || props.progress.status === 'cancelled') && props.progress.message && <div className={props.progress.status === 'error' ? 'speed-error-text' : 'speed-cancel-text'}>{props.progress.message}</div>}{props.history.length > 0 && <div className="speed-history"><div className="panel-title">最近测速记录</div>{props.history.slice(0, 8).map((item, index) => <div className="speed-history-row" key={`${item.testedAt}-${item.nodeId}-${index}`}><div><b>{item.nodeName}</b><small>{new Date(item.testedAt).toLocaleString()} · {item.threads} 线程 · {formatBytes(item.bytes)}</small></div><div><strong>{item.averageMbps.toFixed(2)} Mbps</strong><small>{item.latencyMs} ms</small></div></div>)}</div>}</section></div></div>;
 }
 
 function SettingsPage({ state, coreInfo, tunLocked, saveDnsStrategy, openCoreFolder }: {
