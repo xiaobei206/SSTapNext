@@ -60,3 +60,11 @@ test('active or still-addressed TUN adapters remain protected as cleanup residua
   assert.match(runtimeSource, /WaitForAdapterRemovalAsync\(session\.InterfaceName, AdapterRemovalTimeout, preExistingAdapterSnapshot\)/);
   assert.match(runtimeSource, /cleanup_error/);
 });
+
+test('legacy adapter absence requires complete interface enumeration and a stopped sing-box PID', () => {
+  assert.match(runtimeSource, /inspectionComplete = true/);
+  assert.match(runtimeSource, /NetworkInterface\.GetAllNetworkInterfaces\(\)/);
+  assert.match(runtimeSource, /Process\.GetProcessById\(processId\)/);
+  assert.match(runtimeSource, /relatedAdapters/);
+  assert.match(runtimeSource, /processCheckComplete = process\.CheckComplete/);
+});
