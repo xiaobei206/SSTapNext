@@ -27,7 +27,7 @@ const SPEED_TEST_FALLBACK_URLS = [
   'https://speedtest.tele2.net/1GB.zip',
   'https://nbg1-speed.hetzner.com/1GB.bin',
 ];
-const TUN_RULE_SETTINGS_LOCKED_STATES = new Set(['requested', 'awaiting_uac', 'starting', 'running', 'stopping', 'cleanup_error']);
+let ruleLibraryUpdating = false;
 
 let mainWindow;
 let stateCache;
@@ -456,21 +456,31 @@ ipcMain.handle('sstap:rule-library-get', async (event) => {
 });
 ipcMain.handle('sstap:rule-library-update', async (event) => {
   assertTrustedRenderer(event);
-  const tunStatus = getTunController().getStatus();
-  if (TUN_RULE_SETTINGS_LOCKED_STATES.has(tunStatus.status)) {
-    throw new Error('系统 TUN 尚未确认完全停止（' + tunStatus.status + '）；请先处理 TUN 状态，再更新 SSTap 规则库。');
+  const tun = getTunController();
+  if (ruleLibraryUpdating || tun.isRuleLibraryMutationLocked()) {
+    throw new Error('系统 TUN 尚未确认完全停止，或规则库更新正在进行；请完成当前操作后再更新 SSTap 规则库。');
   }
   return serializeMutation(async () => {
-    const result = await updateSstapRuleLibrary(app.getPath('userData'));
-    const state = await loadState();
-    const installed = new Set(result.rules.map((item) => item.id));
-    const selected = state.settings.enabledRuleIds || [];
-    const kept = selected.filter((id) => installed.has(id));
-    if (kept.length !== selected.length) {
-      state.settings.enabledRuleIds = kept;
-      await persistState();
+    // Recheck after entering the mutation queue: TUN may have started while this
+    // request waited behind another settings write.
+    if (ruleLibraryUpdating || tun.isRuleLibraryMutationLocked()) {
+      throw new Error('系统 TUN 状态已变化或规则库正在更新；本次更新已安全取消。');
     }
-    return result;
+    ruleLibraryUpdating = true;
+    try {
+      const result = await updateSstapRuleLibrary(app.getPath('userData'));
+      const state = await loadState();
+      const installed = new Set(result.rules.map((item) => item.id));
+      const selected = state.settings.enabledRuleIds || [];
+      const kept = selected.filter((id) => installed.has(id));
+      if (kept.length !== selected.length) {
+        state.settings.enabledRuleIds = kept;
+        await persistState();
+      }
+      return result;
+    } finally {
+      ruleLibraryUpdating = false;
+    }
   });
 });
 
@@ -542,8 +552,8 @@ ipcMain.handle('sstap:settings-save', async (event, patch) => {
   const changesRoutingSettings = patch.mode !== undefined
     || patch.customRulesText !== undefined
     || patch.enabledRuleIds !== undefined;
-  if (changesRoutingSettings && TUN_RULE_SETTINGS_LOCKED_STATES.has(getTunController().getStatus().status)) {
-    throw new Error('系统 TUN 尚未确认完全停止；分流模式、自定义规则和 SSTap 游戏规则已锁定。');
+  if (changesRoutingSettings && (ruleLibraryUpdating || getTunController().isRuleLibraryMutationLocked())) {
+    throw new Error('系统 TUN 尚未确认完全停止，或 SSTap 规则库正在更新；分流模式、自定义规则和游戏规则已锁定。');
   }
 
   if (patch.customRulesText !== undefined) {
@@ -630,11 +640,15 @@ ipcMain.handle('sstap:tun-connect', async (event, nodeId) => {
   assertTrustedRenderer(event);
   if (appIsQuitting) throw new Error('软件正在退出，已阻止新的系统代理连接。');
   if (speedTestRunning) throw new Error('测速正在运行，请等测速结束后再启动系统代理。');
+  if (ruleLibraryUpdating) throw new Error('SSTap 规则库正在下载和转换，请完成后再启动系统 TUN。');
   const localStatus = getCoreController().getStatus();
   if (['connected', 'starting', 'stopping'].includes(localStatus.status)) throw new Error('本地代理核心正在运行。请先断开本地代理，再启动系统 TUN，避免两个会话同时争用网络。');
   const state = await loadState();
+  if (ruleLibraryUpdating) throw new Error('SSTap 规则库已开始更新，请稍后再启动系统 TUN。');
   const node = state.nodes.find((item) => item.id === String(nodeId || ''));
   if (!node) throw new Error('找不到所选节点，请重新选择。');
+  // connect() sets its in-flight start lock synchronously before yielding, so an
+  // updater queued after this point will see the TUN mutation lock.
   return getTunController().connect(node, state.settings);
 });
 ipcMain.handle('sstap:tun-disconnect', async (event) => {
