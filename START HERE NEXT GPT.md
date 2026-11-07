@@ -45,6 +45,7 @@
 - 当前正式 Release：v0.3.16（2026-11-07），https://github.com/xiaobei206/SSTapNext/releases/tag/v0.3.16
 - 当前公开 Release：v0.3.16；main package / Agent version 为 0.3.16；上一正式版本：v0.3.15。
 - v0.3.16 Release target commit：`6245eab7e953ff13c0f765691a8ad1692e15f14e`；本次收尾开始时 main HEAD：`f3e27bfba1a3480317fa7555c9296dd38fc5d2fa`（比发布目标只多一个文档提交，运行时代码一致）。
+- 为消除首次 CI 偶发状态 JSON 解析失败，追加了仅测试夹具提交 `6ba1c2e6dacdfa59c62c109190086597578bf9a2`；该提交只改 `src/shared/tun-controller.test.mjs`，Node CI run [42369688144](https://github.com/xiaobei206/SSTapNext/actions/runs/42369688144) **107/107 PASS、0 fail，lock 704/704 PASS**。运行时代码、版本号和 v0.3.16 发布资产未改动。
 - 旧分支 `feature/sstap-rule-library-0312` 不再使用；PR #1 仅是历史迁移记录。
 
 ### 最新自动化与发布证据（0.3.16，已核验至 2026-11-07）
@@ -55,7 +56,7 @@
 - Release 资产已通过 GitHub Release API 核实：EXE 174,898,679 bytes，SHA-256 `68c7094f74ef50c85ca96e9e07110be9397703fbaa915233a4634e5d8292261d`；blockmap 182,455 bytes；SHA-256 sidecar 93 bytes。完整资产和各自摘要见 `docs/RELEASE-0.3.16.md`。
 - 本次收尾开始时 main HEAD 为 `f3e27bfba1a3480317fa7555c9296dd38fc5d2fa`，仅比 Release target 多 1 个文档提交，没有运行时代码差异。该 HEAD 的 Node CI run [42365557674](https://github.com/xiaobei206/SSTapNext/actions/runs/42365557674) 也成功，107/107 测试与 704/704 锁文件检查通过。
 - 注意：当前 HEAD 的 Windows workflow run [42365557673](https://github.com/xiaobei206/SSTapNext/actions/runs/42365557673) 虽为 success，但因 v0.3.16 Release 已存在，Build/安装包校验/发布步骤被 skip。它不是一次新的完整安装包构建；正式包完整构建证据是 Release target 的 run 42365153123。
-- 文档收尾提交 `0b88f3eef4333871006bd4c3eb3bb963f58ccc0d` 的 CI run [42369369282](https://github.com/xiaobei206/SSTapNext/actions/runs/42369369282)：首次 attempt 的 `npm test` 为 106/107，唯一失败是 `isolates DNS cache databases for IPv4-only, IPv4-first dual-stack and IPv6-first dual-stack` 在 `_readAgentStatus()` 解析状态 JSON 时遇到 `Unexpected end of JSON input`；对同一 SHA 重跑失败 job 后 attempt 2 为 **107/107 PASS、0 fail，lock 704/704 PASS**。这是一次间歇性失败与重跑通过的记录，未修改运行时代码，不能声称根因已修复。
+- 文档收尾提交 `0b88f3eef4333871006bd4c3eb3bb963f58ccc0d` 的 CI run [42369369282](https://github.com/xiaobei206/SSTapNext/actions/runs/42369369282)：首次 attempt 的 `npm test` 为 106/107，唯一失败是 `isolates DNS cache databases for IPv4-only, IPv4-first dual-stack and IPv6-first dual-stack` 在 `_readAgentStatus()` 解析状态 JSON 时遇到 `Unexpected end of JSON input`；对同一 SHA 重跑失败 job 后 attempt 2 为 **107/107 PASS、0 fail，lock 704/704 PASS**。随后在 test-only commit `6ba1c2e6dacdfa59c62c109190086597578bf9a2` 中，让模拟 Agent 状态写入与真实 `TunRuntime.WriteStatusAsync()` 一致：写入 `.tmp` 后用 `fs.rename()` 原子替换。该提交的 CI run [42369688144](https://github.com/xiaobei206/SSTapNext/actions/runs/42369688144) 首次运行即 **107/107 PASS、lock 704/704 PASS**；只改测试夹具，不修改生产运行时代码。
 - 同一提交的 Windows workflow [42369369316](https://github.com/xiaobei206/SSTapNext/actions/runs/42369369316) 为 success，但因为 v0.3.16 Release 已存在，lock/build/installer SHA/publish/upload 步骤均 skipped；不算新安装包构建。
 - 新提交之后必须再核对对应 SHA 的 Actions；不要将文档-only 提交的绿色工作流说成重建了安装包。
 
@@ -72,7 +73,7 @@
 - 无路由 TUN smoke test；全部通过后，执行真实 TUN connect → disconnect → reconnect 至少 10 轮，核对核心退出、路由/DNS 恢复和 Wintun 资源判据。
 - 真实节点握手、公网出口、浏览器业务、DNS、IPv6（适用时）及 UDP/QUIC；最后检查统计 UI、节点表排序/布局与字号。
 - Agent 源码实现了非法 Clash API 形态的拒绝条件，但仓库当前没有独立的 .NET 行为级测试来实际执行所有恶意配置样例；该负向行为测试仍未运行，不要误标为已通过。
-- 另有一次 Node 回归测试间歇性失败后重跑通过：`tun-controller.test.mjs` 的 DNS cache isolation 测试在读取 `status.json` 时得到 EOF JSON。该现象尚未进行专门修复或稳定性验证；后续若再次出现，应先复现并检查状态文件写入/读取是否需要原子化及相应回归测试。
+- 已处理一次 Node 回归测试夹具的非原子写入问题：`src/shared/tun-controller.test.mjs` 模拟 Agent 现在先写 `.tmp` 并原子替换 `status.json`，与真实 Agent 一致。修复提交 `6ba1c2e6dacdfa59c62c109190086597578bf9a2` 的 CI 107/107 PASS；生产 Agent/TUN 源码未改。真实 Windows TUN 仍待用户验收。
 
 开始真实 TUN 前，按 `docs/WINDOWS-ACCEPTANCE.md` 的 smoke-test 与停止条件执行；遇到 `cleanup_error`、未知网卡归属或路由/DNS 不一致应停止，不手动删除网卡、不重置 Windows 网络。
 

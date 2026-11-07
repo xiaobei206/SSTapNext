@@ -11,7 +11,7 @@
 设计与发布记录：`docs/RELEASE-0.3.16.md`；所有现有 Agent/TUN 安全校验必须保持 fail-closed。CI 与 Release 资产核验不替代实机验收。
 
 
-CI 稳定性备注（2026-11-07）：文档收尾提交 `0b88f3eef4333871006bd4c3eb3bb963f58ccc0d` 的 Node CI 首次 attempt 曾在测试 `isolates DNS cache databases for IPv4-only, IPv4-first dual-stack and IPv6-first dual-stack` 报 `Unexpected end of JSON input`（`TunController._readAgentStatus()` 解析状态文件）；同一 SHA 重跑后 107/107 PASS、lock 704/704 PASS。此现象目前只确认过一次失败后重跑通过，未修复或证明根因消失，后续应针对状态 JSON 并发读写另行复现/补回归测试。
+CI 稳定性备注（2026-11-07）：最初文档提交 `0b88f3eef4333871006bd4c3eb3bb963f58ccc0d` 首次 attempt 的 DNS cache isolation 测试曾在 `TunController._readAgentStatus()` 解析状态 JSON 时得到 `Unexpected end of JSON input`；同 SHA 重跑后 107/107 PASS。随后 test-only commit `6ba1c2e6dacdfa59c62c109190086597578bf9a2` 将模拟 Agent 的状态写入改成 `.tmp` + `fs.rename()` 原子替换，匹配真实 .NET Agent 的 `WriteStatusAsync()`；该提交的 CI run [42369688144](https://github.com/xiaobei206/SSTapNext/actions/runs/42369688144) 首次运行 **107/107 PASS、lock 704/704 PASS**。生产运行时代码未修改。
 ## 0.3.15 实时流量统计与 UI 可读性（功能已由 v0.3.16 发布承载；历史验证说明）
 
 设计依据：`docs/LIVE-TRAFFIC-AND-UI-READABILITY.md`。本节原记录 0.3.15 实现阶段的验收方案；自动化与 Windows 构建结果已由 v0.3.16 正式 Release 证据覆盖。Windows 实机功能验收仍 NOT RUN，见当前顶部条目和 `docs/WINDOWS-ACCEPTANCE.md`。

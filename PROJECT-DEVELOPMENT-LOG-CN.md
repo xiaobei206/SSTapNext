@@ -530,7 +530,7 @@
 - Release Node CI run [42365153162](https://github.com/xiaobei206/SSTapNext/actions/runs/42365153162)：107/107 PASS、0 fail；package-lock 704/704 PASS。
 - Release Windows workflow run [42365153123](https://github.com/xiaobei206/SSTapNext/actions/runs/42365153123)，job `128381544820`：sing-box 58/58、.NET 10 Agent、TS/Vite、NSIS、installer SHA、Release 发布和 artifact 上传全部成功。Release API 已确认 EXE、blockmap、SHA-256 sidecar 实际存在，哈希与大小见 `docs/RELEASE-0.3.16.md`。
 - 收尾起点 HEAD 的文档 CI run [42365557674](https://github.com/xiaobei206/SSTapNext/actions/runs/42365557674)：107/107 PASS、lock 704/704 PASS。对应 Windows run [42365557673](https://github.com/xiaobei206/SSTapNext/actions/runs/42365557673) 显示 success，但由于 v0.3.16 Release 已存在，Build/installer verification/publish/upload 步骤被 skip；不可声称该 run 重新构建安装包。
-- 文档收尾提交 `0b88f3eef4333871006bd4c3eb3bb963f58ccc0d` 的 CI run [42369369282](https://github.com/xiaobei206/SSTapNext/actions/runs/42369369282)：第一次 attempt 的 107 项中 106 通过、1 项失败；`isolates DNS cache databases ...` 在 `TunController._readAgentStatus()` 解析状态 JSON 时出现 `Unexpected end of JSON input`。该 workflow 重跑失败 job 后 attempt 2 为 **107/107 PASS、0 fail**，lock **704/704 PASS**。未修改运行时代码；此间歇性状态文件读写问题未被认定已修复，应在后续单独复现/调查。
+- 文档收尾提交 `0b88f3eef4333871006bd4c3eb3bb963f58ccc0d` 的 CI run [42369369282](https://github.com/xiaobei206/SSTapNext/actions/runs/42369369282)：第一次 attempt 的 107 项中 106 通过、1 项失败；`isolates DNS cache databases ...` 在 `TunController._readAgentStatus()` 解析状态 JSON 时出现 `Unexpected end of JSON input`。该 workflow 重跑失败 job 后 attempt 2 为 **107/107 PASS、0 fail**，lock **704/704 PASS**。后续已在 test-only commit `6ba1c2e6dacdfa59c62c109190086597578bf9a2` 修正模拟 Agent 的状态文件写法：先写 `.tmp`，再 `fs.rename()` 原子替换，匹配真实 .NET Agent 的 `WriteStatusAsync`；对应 CI run 42369688144 首次运行 107/107 PASS、lock 704/704 PASS。生产运行时代码未修改。
 - 同提交 Windows run [42369369316](https://github.com/xiaobei206/SSTapNext/actions/runs/42369369316) success；Release 已存在，因此 lock、Build/installer、SHA/publish/upload 步骤按 workflow 设计被跳过。不要把它当作新建安装包的完整构建。
 
 ### 本轮文档收尾范围
@@ -552,3 +552,13 @@
 ### 下一步唯一动作
 
 用户在 Windows 10/11 安装正式 v0.3.16，按 `docs/WINDOWS-ACCEPTANCE.md` 先跑本地代理与无路由 TUN smoke test，确认无风险后再执行真实 TUN；逐项回填结果。若发现可复现缺陷，先更新设计/验收文档，再做最小代码修复并递增版本号。
+
+
+## 2026-11-07 — TUN 控制器回归测试夹具原子状态写入修正
+
+- 触发原因：文档收尾提交 `0b88f3eef4333871006bd4c3eb3bb963f58ccc0d` 的首次 CI attempt 中，DNS cache isolation 测试 106/107 通过，单个失败因 `TunController._readAgentStatus()` 在测试的模拟状态写入过程中读到不完整 JSON。
+- 核对真实 .NET Agent 的 `TunRuntime.WriteStatusAsync()`：先写 `status.json.tmp`，再 `File.Move(temp, status, true)` 替换；Node 测试夹具此前直接覆盖 `status.json`，未模拟同样的原子更新行为。
+- 先在交接/测试文档中记录问题与方案，再在 main 提交 test-only 修复 `6ba1c2e6dacdfa59c62c109190086597578bf9a2`：模拟 Agent 改为先写 `<statusPath>.tmp`，完成后使用 `fs.rename()` 原子替换目标文件。
+- 验证：CI run [42369688144](https://github.com/xiaobei206/SSTapNext/actions/runs/42369688144) 首次 attempt **107/107 PASS，0 fail**；`npm run verify:lock` **704/704 PASS**。Windows workflow run [42369688117](https://github.com/xiaobei206/SSTapNext/actions/runs/42369688117) success；因 v0.3.16 Release 已存在，重复 lock/build/installer SHA/publish/upload steps 按设计 skip。
+- 范围边界：仅修改 `src/shared/tun-controller.test.mjs` 的模拟 Agent；没有修改 .NET Agent、TUN runtime、产品功能、依赖、package 版本或 Release assets。不需要重新发布 v0.3.16 安装包。
+- 仍 NOT RUN：用户 Windows 10/11 的系统 TUN、真实节点公网出口/DNS/UDP/QUIC、实时统计、Direct 流量归属和 10 轮重连验收；Agent 白名单全部恶意配置形态的独立 .NET 行为级负向测试亦尚未实现/执行。
