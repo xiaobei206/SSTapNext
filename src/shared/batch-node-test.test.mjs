@@ -81,6 +81,28 @@ test('runs ICMP ping with an argument array and parses the process output', asyn
   assert.equal(result.lossPercent, 66);
 });
 
+test('waits for the Windows ping child to close before completing cancellation', async () => {
+  const abort = new AbortController();
+  let closed = false;
+  const spawnImpl = () => {
+    const child = new EventEmitter();
+    child.stdout = new PassThrough();
+    child.stderr = new PassThrough();
+    child.kill = () => {
+      setTimeout(() => {
+        closed = true;
+        child.emit('close', null, 'SIGTERM');
+      }, 25);
+      return true;
+    };
+    return child;
+  };
+  const pending = runIcmpPing('127.0.0.1', { spawnImpl, platform: 'win32', signal: abort.signal });
+  setImmediate(() => abort.abort());
+  await assert.rejects(pending, /测速已取消/);
+  assert.equal(closed, true);
+});
+
 test('TCPING measures TCP connect only and returns refusal distinctly', async (t) => {
   const server = net.createServer((socket) => socket.end());
   await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
@@ -100,8 +122,11 @@ test('separates concurrent node workers from per-node Range threads and caps tot
   assert.equal(effectiveDownloadThreads(32, 4), 16);
   assert.equal(effectiveDownloadThreads(32, 16), 4);
   assert.equal(effectiveDownloadThreads(32, 32), 2);
+  assert.equal(effectiveDownloadThreads(32, 3), 16, 'non-power-of-two effective concurrency rounds down to a supported Range tier');
+  assert.equal(effectiveDownloadThreads(32, 5), 8);
   assert.equal(effectiveDownloadThreads(8, 32) * 32, 64);
   assert.throws(() => effectiveDownloadThreads(3, 4), /只允许/);
+  assert.throws(() => effectiveDownloadThreads(8, 0), /1 至 32/);
 });
 
 test('builds one isolated loopback inbound and outbound per node, with an explicit route per inbound', () => {

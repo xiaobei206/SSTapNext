@@ -81,30 +81,35 @@ function runIcmpPing(host, options = {}) {
       clearTimeout(timer);
       options.signal?.removeEventListener('abort', onAbort);
     };
-    const finish = (result) => {
+    const finish = (result, error = null) => {
       if (settled) return;
       settled = true;
       cleanup();
-      resolve(result);
+      if (error) reject(error);
+      else resolve(result);
     };
+    const finishCancelled = () => finish(null, abortError());
     const onAbort = () => {
+      if (settled) return;
+      // Wait for ChildProcess close so a cancelled ICMP worker is not left behind.
       try { child.kill(); } catch { /* The ping process may already have exited. */ }
-      if (!settled) {
-        settled = true;
-        cleanup();
-        reject(abortError());
-      }
     };
     options.signal?.addEventListener('abort', onAbort, { once: true });
     timer = setTimeout(() => {
       try { child.kill(); } catch { /* The ping process may already have exited. */ }
       finish(parseIcmpOutput(stdout, stderr, count));
     }, count * (timeoutMs + 250) + 2500);
-    child.once('error', (error) => finish({
-      status: 'error', averageMs: null, lossPercent: 100, sent: count, received: 0,
-      message: 'ICMP 检测启动失败：' + String(error.message || error),
-    }));
-    child.once('close', () => finish(parseIcmpOutput(stdout, stderr, count)));
+    child.once('error', (error) => {
+      if (options.signal?.aborted) finishCancelled();
+      else finish({
+        status: 'error', averageMs: null, lossPercent: 100, sent: count, received: 0,
+        message: 'ICMP 检测启动失败：' + String(error.message || error),
+      });
+    });
+    child.once('close', () => {
+      if (options.signal?.aborted) finishCancelled();
+      else finish(parseIcmpOutput(stdout, stderr, count));
+    });
   });
 }
 
@@ -185,8 +190,9 @@ function effectiveDownloadThreads(requestedThreads, concurrency) {
   const threads = Number(requestedThreads);
   const workers = Number(concurrency);
   if (!ALLOWED_DOWNLOAD_THREADS.includes(threads)) throw new Error('单节点下载线程只允许 1、2、4、8、16 或 32');
-  if (!ALLOWED_CONCURRENCY.includes(workers)) throw new Error('批量并发节点数只允许 1、2、4、8、16 或 32');
-  return Math.max(1, Math.min(threads, Math.floor(MAX_TOTAL_RANGE_WORKERS / workers)));
+  if (!Number.isInteger(workers) || workers < 1 || workers > MAX_BATCH_NODES) throw new Error('有效并发节点数必须在 1 至 32 之间');
+  const budget = Math.max(1, Math.min(threads, Math.floor(MAX_TOTAL_RANGE_WORKERS / workers)));
+  return ALLOWED_DOWNLOAD_THREADS.filter((value) => value <= budget).at(-1) || 1;
 }
 
 async function runWithConcurrency(items, concurrency, worker, signal) {
@@ -366,12 +372,12 @@ class BatchNodeTester {
           await session.stop();
         }
       }
-      const result = { status: 'completed', batchId, total: unique.length, completed, failed, concurrency, requestedDownloadThreads: requestedThreads, effectiveDownloadThreads: threads, coreVersion };
+      const result = { status: 'completed', batchId, total: unique.length, completed, failed, concurrency, effectiveConcurrency, requestedDownloadThreads: requestedThreads, effectiveDownloadThreads: threads, coreVersion };
       this._emit(result);
       return result;
     } catch (error) {
       if (signal.aborted || String(error?.message || error).includes('测速已取消')) {
-        const result = { status: 'cancelled', batchId, total: unique.length, completed, failed, concurrency, requestedDownloadThreads: requestedThreads, effectiveDownloadThreads: threads };
+        const result = { status: 'cancelled', batchId, total: unique.length, completed, failed, concurrency, effectiveConcurrency, requestedDownloadThreads: requestedThreads, effectiveDownloadThreads: threads };
         this._emit(result);
         return result;
       }
