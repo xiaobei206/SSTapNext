@@ -7,7 +7,7 @@
     <InvariantGlobalization>true</InvariantGlobalization>
     <AssemblyName>SstapNext.Agent</AssemblyName>
     <RootNamespace>SstapNext.Agent</RootNamespace>
-    <Version>0.3.14</Version>
+    <Version>0.3.15</Version>
     <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
   </PropertyGroup>
 </Project>
