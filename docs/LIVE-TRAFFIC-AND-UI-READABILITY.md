@@ -99,3 +99,12 @@
 - 单独的 main 小提交便于用 GitHub Revert 回退；不重写历史或 force push。
 - 若 Clash API 配置导致核心配置校验失败，回退本轮 API 配置前先禁用该配置，但不放宽 loopback/secret 约束。
 - 持久化统计是向 state schemaVersion 1 增加可选字段；旧数据文件未含字段时迁移为空对象即可。回滚代码不应损坏节点、订阅或旧测速结果。
+
+
+## 7. 实施阶段发现的 Agent 安全白名单冲突（修复前记录）
+
+- 现象：启动系统 TUN 返回 `InvalidDataException: TUN 配置包含不允许的 endpoint 或外部控制接口。`
+- 根因：`src/agent/SstapNext.Agent/Core/TunRuntime.cs` 的 `ValidateRestrictedTunConfig()` 原本一律拒绝 `experimental.clash_api`。新增 TUN 统计配置后，桌面端正确生成 loopback API，但管理员 Agent 未同步放行其受限的配置形态。
+- 修正设计：继续无条件拒绝根级 `endpoints`；Clash API 只允许 `external_controller` 和 `secret` 两个字段；控制地址必须严格匹配 `127.0.0.1:<1..65535>`；密钥必须为 64 位十六进制字符；禁止外部 UI、额外字段或任何非 loopback 地址。保留现有 cache_file、TUN interface、路由、DNS、路径哈希以及网卡清理所有安全校验。
+- 验收：构建 .NET 10 Agent；验证无 clash_api 的旧配置继续通过、带合法 loopback+secret 配置通过、0.0.0.0 / LAN / IPv6 / 无效端口 / 短密钥 / 额外字段被拒绝；再跑实际 sing-box 配置矩阵和完整 Windows build。
+- 代码修改前记录；此错误不应通过删除整个 Agent 检查来规避。
