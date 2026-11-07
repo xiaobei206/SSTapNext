@@ -557,6 +557,48 @@ function NodesPage(props: {
   startBatchNodeTest: (scope: 'all' | 'selected') => void; cancelBatchNodeTest: () => void;
 }) {
   const allSelected = props.state.nodes.length > 0 && props.state.nodes.every((node) => props.batchSelectedNodeIds.includes(node.id));
+  const [sortState, setSortState] = useState<{ key: NodeSortKey; direction: 'asc' | 'desc' } | null>(null);
+  const sortedNodes = useMemo(() => {
+    const rows = props.state.nodes.map((node, index) => ({ node, index }));
+    if (!sortState) return rows.map((row) => row.node);
+    const metric = (node: SstapNode): number | null => {
+      const result = props.state.nodeTestResults?.[node.id];
+      const traffic = props.state.nodeTrafficStats?.[node.id];
+      const valid = (value: unknown): number | null => typeof value === 'number' && Number.isFinite(value) ? value : null;
+      switch (sortState.key) {
+        case 'ping': return result?.ping?.status === 'ok' ? valid(result.ping.averageMs) : null;
+        case 'tcping': return result?.tcping?.status === 'ok' ? valid(result.tcping.averageMs) : null;
+        case 'proxyLatency': return result?.proxyLatency?.status === 'ok' ? valid(result.proxyLatency.latencyMs) : null;
+        case 'download': return result?.download?.status === 'ok' ? valid(result.download.averageMbps) : null;
+        case 'trafficUpload': return traffic ? valid(traffic.uploadBytes) : null;
+        case 'trafficDownload': return traffic ? valid(traffic.downloadBytes) : null;
+        case 'trafficTotal': return traffic ? valid(traffic.uploadBytes + traffic.downloadBytes) : null;
+        case 'testedAt': return result?.testedAt ? valid(Date.parse(result.testedAt)) : null;
+        default: return null;
+      }
+    };
+    rows.sort((left, right) => {
+      const a = metric(left.node);
+      const b = metric(right.node);
+      const aMissing = a === null;
+      const bMissing = b === null;
+      if (aMissing !== bMissing) return aMissing ? 1 : -1;
+      if (aMissing || bMissing) return left.index - right.index;
+      const comparison = sortState.direction === 'asc' ? a! - b! : b! - a!;
+      return comparison || left.index - right.index;
+    });
+    return rows.map((row) => row.node);
+  }, [props.state.nodes, props.state.nodeTestResults, props.state.nodeTrafficStats, sortState]);
+  function toggleSort(key: NodeSortKey) {
+    setSortState((current) => current?.key === key
+      ? { key, direction: current.direction === 'asc' ? 'desc' : 'asc' }
+      : { key, direction: 'asc' });
+  }
+  function sortHeading(label: string, key: NodeSortKey) {
+    const active = sortState?.key === key;
+    const arrow = active ? (sortState.direction === 'asc' ? '↑' : '↓') : '↕';
+    return <button type="button" className={`node-sort-button ${active ? 'active' : ''}`} title={`按${label}排序，再次点击切换方向`} aria-label={`按${label}${active ? (sortState!.direction === 'asc' ? '升序' : '降序') : '升序'}排序`} onClick={() => toggleSort(key)}>{label}<span>{arrow}</span></button>;
+  }
   return <div className="page-stack">
     <div className="page-intro"><div><h2>节点管理</h2><p>把浏览器或订阅软件里的分享链接复制过来即可，不需要手动编辑配置文件。</p></div><span className="pill pill-green">已支持 5 类链接</span></div>
     <div className="two-column">
@@ -579,7 +621,7 @@ function NodesPage(props: {
           {props.batchTesting && <button className="button button-quiet danger-text" onClick={props.cancelBatchNodeTest}>取消检测</button>}
         </div>
       </div>
-      <div className="batch-explain">本次下载量：{formatBytes(props.state.settings.speedTestBytes)}；测速地址和下载量沿用“节点测速”页设置。PING = ICMP；TCPING = TCP 端口连接；代理延迟和下载速度通过节点自身代理链路测试。Hysteria2 不适用 TCPING。系统代理不会被修改。</div>
+      <div className="batch-explain">本次下载量：{formatBytes(props.state.settings.speedTestBytes)}；测速地址和下载量沿用“节点测速”页设置。PING = ICMP；TCPING = TCP 端口连接；代理延迟和下载速度通过节点自身代理链路测试。流量列为本地代理累计（不含 TUN 直连流量）；点击指标标题可切换升序/降序。Hysteria2 不适用 TCPING。系统代理不会被修改。</div>
       {props.batchTesting && <div className="batch-progress-card">
         <div className="batch-progress-top"><b>正在批量检测</b><span>{props.batchProgress.completed || 0} / {props.batchProgress.total || props.state.nodes.length} 完成 · {props.batchProgress.failed || 0} 个失败/部分结果</span></div>
         <div className="speed-progress-track"><div className="speed-progress-value" style={{ width: ((props.batchProgress.total || 0) > 0 ? Math.min(100, ((props.batchProgress.completed || 0) / (props.batchProgress.total || 1)) * 100) : 0) + '%' }} /></div>
@@ -588,8 +630,19 @@ function NodesPage(props: {
         {props.batchProgress.downloadProgress && <small>当前节点下载：{Math.round(props.batchProgress.downloadProgress.ratio * 100)}% · {formatBytes(props.batchProgress.downloadProgress.receivedBytes)} / {formatBytes(props.batchProgress.downloadProgress.totalBytes)}</small>}
       </div>}
       {props.state.nodes.length === 0 ? <div className="empty-state"><div className="empty-icon">◈</div><b>还没有节点</b><p>粘贴分享链接，或添加一条订阅开始使用。</p></div> : <div className="node-list batch-node-list">
-        <div className="batch-node-head"><span></span><span></span><span>节点</span><span>PING</span><span>TCPING</span><span>代理延迟</span><span>下载</span><span>最近检测</span><span></span><span></span></div>
-        {props.state.nodes.map((node) => {
+        <div className="batch-node-head">
+          <span></span><span></span><span>节点</span>
+          <span>{sortHeading('PING', 'ping')}</span>
+          <span>{sortHeading('TCPING', 'tcping')}</span>
+          <span>{sortHeading('代理延迟', 'proxyLatency')}</span>
+          <span>{sortHeading('下载速度', 'download')}</span>
+          <span>{sortHeading('上传累计', 'trafficUpload')}</span>
+          <span>{sortHeading('下载累计', 'trafficDownload')}</span>
+          <span>{sortHeading('总流量', 'trafficTotal')}</span>
+          <span>{sortHeading('最近检测', 'testedAt')}</span>
+          <span></span><span></span>
+        </div>
+        {sortedNodes.map((node) => {
           const result = props.state.nodeTestResults?.[node.id];
           return <div key={node.id} className={`node-row batch-node-row ${props.selectedNodeId === node.id ? 'selected' : ''} ${props.activeNodeId === node.id ? 'connected-node' : ''}`} onClick={() => props.setSelectedNodeId(node.id)}>
             <input className="batch-node-checkbox" type="checkbox" checked={props.batchSelectedNodeIds.includes(node.id)} disabled={props.busy} onClick={(event) => event.stopPropagation()} onChange={(event) => props.toggleBatchNodeSelection(node.id, event.target.checked)} />
@@ -599,6 +652,9 @@ function NodesPage(props: {
             <div className="node-test-value"><small>TCPING</small><b>{formatNodeMetric(result?.tcping, 'tcping')}</b></div>
             <div className="node-test-value"><small>代理延迟</small><b>{formatNodeMetric(result?.proxyLatency, 'proxy')}</b></div>
             <div className="node-test-value"><small>下载速度</small><b>{formatNodeMetric(result?.download, 'download')}</b></div>
+            <div className="node-test-value"><small>上传累计</small><b>{props.state.nodeTrafficStats?.[node.id] ? formatTrafficBytes(props.state.nodeTrafficStats[node.id].uploadBytes) : '—'}</b></div>
+            <div className="node-test-value"><small>下载累计</small><b>{props.state.nodeTrafficStats?.[node.id] ? formatTrafficBytes(props.state.nodeTrafficStats[node.id].downloadBytes) : '—'}</b></div>
+            <div className="node-test-value"><small>总流量</small><b>{props.state.nodeTrafficStats?.[node.id] ? formatTrafficBytes(props.state.nodeTrafficStats[node.id].uploadBytes + props.state.nodeTrafficStats[node.id].downloadBytes) : '—'}</b></div>
             <div className="node-test-value node-test-time"><small>最近检测</small><b>{result?.testedAt ? new Date(result.testedAt).toLocaleString() : '—'}</b></div>
             <div className="node-source">{node.sources?.some((source) => source.startsWith('subscription:')) ? (node.sources.includes('clipboard') ? '订阅 + 手动' : '订阅') : '手动'}</div>
             <button className="icon-button danger" title="删除节点" disabled={props.busy} onClick={(event) => { event.stopPropagation(); props.removeNode(node.id); }}>×</button>
