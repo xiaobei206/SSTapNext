@@ -207,3 +207,11 @@
 3. 重点保留三层优先级：private/LAN 安全直连 → 用户显式游戏/规则集 → 自动大陆 IP 与 GeoSite/GeoIP fallback；其中自动大陆规则不能先于用户游戏规则。
 4. 不允许在 TUN running/transitioning 时更新规则库或更改启用选择；不允许下载/转换失败覆盖旧 current pointer。
 5. PR 合并后，仍需通过 Windows 实机确认规则下载、启动 TUN、bypass-cn/游戏覆盖、更新失败回滚和 10 轮 connect/disconnect；真实公网路径和 UDP/QUIC 单独记录。
+### 追加安全审查 — 规则更新与 TUN 生命周期互斥（2026-11-07）
+
+- 发现仅在 IPC 进入时读取一次 Agent status 仍有竞态：TUN 可能在规则更新排队期间启动；反之规则库下载/转换期间也可能有 TUN connect 请求进入。
+- TunController.isRuleLibraryMutationLocked() 现在同时检查 retained session、start/stop/recovery Promise，以及 requested/awaiting_uac/starting/running/stopping/cleanup_error 状态。启动前的 stale-session recovery 也纳入锁，不依赖 UI 是否及时收到状态事件。
+- Electron 主进程增加 ruleLibraryUpdating 互斥标志；更新 handler 进入 mutation queue 后重新检查 TUN 状态，再持有标志直到下载、转换、active pointer 切换和设置 pruning 全部结束。TUN connect 在加载 state 前后检查更新标志；进入 controller 后，in-flight start Promise 会阻止 updater 竞争。
+- 修改 routing mode/custom rules/enabledRuleIds 的设置操作，同样在 mutation queue 内检查 controller lock 和 updater flag。
+- Renderer 中，TUN start 按钮在规则更新期间禁用；分流和 DNS 设置在 cleanup_error 以及所有启动/停止过渡期间锁定。UI 是可用性提示，Electron IPC/controller 是强制安全边界。
+- 新增 3 条自动化回归：控制器启动/运行/正常停止期间锁定与解锁、cleanup_error 锁定、Electron/Renderer 互斥契约。当前最新 PR HEAD 的 CI 尚待运行完成；不得把旧 HEAD 的成功结果当作该补丁的验证证据。
