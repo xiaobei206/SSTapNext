@@ -131,3 +131,25 @@ The Windows build script runs Node tests, 54 protocol/mode/DNS sing-box combinat
 - 结果持久化为 nodeTestResults，按 nodeId 更新，节点删除/订阅替换时必须防止孤儿记录。
 - Windows 核心配置校验新增多节点批测配置，sing-box 检查从 55 增至 56。
 - 正式代码版本为 0.3.13；本补充只是实现前设计定稿，尚未改运行时代码。
+
+
+# 0.3.13 批量节点检测实施交接（2026-11-07）
+
+## 实际实现范围
+
+- 专题设计：docs/CONCURRENT-NODE-TESTING.md；先文档后代码的设计记录保留。
+- runner：src/shared/batch-node-test.cjs。每批不超过 32 节点，由一个 sing-box 进程承载多个 loopback-only mixed inbound 和 node-specific outbound；路由按 inbound tag 锁定 outbound，final=block。
+- ICMP：Windows ping.exe 三次，解析英语/中文 ping RTT 和丢包；TCPING：三次 TCP socket connect；Hysteria2 TCPING 显示不适用。
+- 代理延迟与下载：通过每节点 SOCKS inbound，复用 requestLatency/downloadSpeedTest/备用源；下载范围由用户 speedTestBytes 和 speedTestThreads 设置决定。
+- 并发：batchTestConcurrency 1/2/4/8/16/32（默认 4）；每节点 Range 线程 1/2/4/8/16/32；全局 Range worker 预算 64，并支持 3、5 等非 2 的幂次节点数。
+- UI：节点管理页全量/勾选、全选、并发/Range 线程参数、保存参数、进度、取消；每节点显示 PING/TCPING/代理延迟/下载/最近检测。
+- 数据：nodeTestResults 按 nodeId 保存进加密用户状态，最多 512 条，节点删除后持久化时裁剪孤儿记录。
+- 安全：不走主 CoreController，不切换/断开现用连接，不修改 Windows 系统代理；TUN unsafe 状态由主进程 IPC 拒绝。取消时等待 ping child close、worker settle、批测 sing-box 退出后清理配置；无法确认退出则保留配置供诊断。
+- 配置验证：scripts/validate-singbox-configs.mjs 新增两节点批测配置实际 sing-box check；目标总计 56 项。
+
+## 发布状态
+
+- 最新正式 Release 仍为 v0.3.12；开发中的 0.3.13 尚未发布。
+- 0.3.13 需要确认本次最新 SHA 对应的 Node CI、Windows workflow 和 56 项 sing-box check，之后正式升版、发布。
+- 用户 Windows 实机仍需验收 1/2/4/8/16/32 并发 CPU、内存、共享带宽、系统代理不变、用户连接未中断、取消后的进程/端口/临时文件清理。
+- 下一对话首先刷新 GitHub main SHA、package version、最新 Actions run/job/step 和 Release 资产；不复用历史 workflow 成功状态。
