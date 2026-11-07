@@ -104,11 +104,60 @@ async function main() {
         }
       }
     }
+
+    // Validate the actual SSTap legacy-rule integration with the real sing-box
+    // binary. The fixture files use the exact source JSON shape produced by the
+    // converter, and the config places proxy/direct game rules before China GEO.
+    const legacyDir = path.join(work, 'sstap-legacy-rules');
+    await fsp.mkdir(legacyDir, { recursive: true });
+    const proxyRulePath = path.join(legacyDir, 'game-proxy.json');
+    const directRulePath = path.join(legacyDir, 'game-direct.json');
+    await fsp.writeFile(proxyRulePath, JSON.stringify({
+      version: 1,
+      rules: [{ ip_cidr: ['8.8.8.0/24'] }],
+    }), 'utf8');
+    await fsp.writeFile(directRulePath, JSON.stringify({
+      version: 1,
+      rules: [{ ip_cidr: ['1.0.1.0/24'] }],
+    }), 'utf8');
+    const importedRuleSets = [
+      { tag: 'sstap_aaaaaaaaaaaaaaaa', path: proxyRulePath, action: 'proxy' },
+      { tag: 'sstap_bbbbbbbbbbbbbbbb', path: directRulePath, action: 'direct' },
+    ];
+    const legacyConfig = buildTunConfig(nodes[0][1], { mode: 'bypass-cn', dnsStrategy: 'ipv4_only' }, {
+      interfaceName: 'SSTap Next Audit',
+      logPath: path.join(legacyDir, 'sing-box.log'),
+      cachePath: path.join(legacyDir, 'cache.db'),
+      importedRuleSets,
+    });
+    const proxyRoute = legacyConfig.route.rules.findIndex((rule) => rule.rule_set?.[0] === importedRuleSets[0].tag);
+    const directRoute = legacyConfig.route.rules.findIndex((rule) => rule.rule_set?.[0] === importedRuleSets[1].tag);
+    const chinaRoute = legacyConfig.route.rules.findIndex((rule) => rule.rule_set?.[0] === 'geosite-cn');
+    if (!(proxyRoute >= 0 && directRoute > proxyRoute && chinaRoute > directRoute)
+      || legacyConfig.route.rules[proxyRoute].outbound !== 'selected-proxy'
+      || legacyConfig.route.rules[directRoute].outbound !== 'direct') {
+      throw new Error('SSTap legacy rules are not ordered or mapped ahead of China GEO routes');
+    }
+    const legacyConfigPath = path.join(legacyDir, 'config.json');
+    await fsp.writeFile(legacyConfigPath, JSON.stringify(legacyConfig, null, 2), 'utf8');
+    const legacyChecked = spawnSync(core, ['check', '-c', legacyConfigPath], {
+      encoding: 'utf8', timeout: 30000, windowsHide: true,
+    });
+    if (legacyChecked.error || legacyChecked.status !== 0) {
+      const detail = [legacyChecked.error?.message, legacyChecked.stderr, legacyChecked.stdout].filter(Boolean).join('\\n').trim();
+      failures.push({ caseName: 'SSTap legacy local source rule sets', detail: detail || `exit=${legacyChecked.status}` });
+      console.error('[FAIL] SSTap legacy local source rule sets');
+      if (detail) console.error(detail);
+    } else {
+      passed++;
+      console.log('[PASS] SSTap legacy local source rule sets (proxy/direct, before China GEO)');
+    }
   } finally {
     await fsp.rm(work, { recursive: true, force: true });
   }
 
-  console.log(`\n配置校验：${passed}/${modes.length * dnsStrategies.length * fixtures.length} 通过`);
+  const expected = modes.length * dnsStrategies.length * fixtures.length + 1;
+  console.log(`\\n配置校验：${passed}/${expected} 通过`);
   if (failures.length) {
     console.error(`失败项：${failures.map((item) => item.caseName).join('；')}`);
     process.exitCode = 5;
