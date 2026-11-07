@@ -3,10 +3,10 @@
 ## Current baseline
 
 - Version: `0.3.12`
-- Previous verified release: `0.3.11`; 0.3.12 is the SSTap legacy rule-library implementation.
+- Release: `v0.3.12` is the SSTap legacy rule-library implementation; the canonical source is the `main` branch.
 - Architecture: Electron main/preload + React/TypeScript renderer; shared Node CJS modules; .NET 10 Windows Agent; sing-box 1.14.x; Wintun TUN inbound.
-- Feature branch during implementation: `feature/sstap-rule-library-0312`. Merge to `main` only after CI and Windows build pass.
-- Main release workflow: `.github/workflows/windows-build.yml`; commits to main run the Windows build and create `v0.3.12` Release if absent.
+- Development workflow: this is a solo project. Work directly on `main`; do not create feature branches or PRs for routine development. Make focused commits on `main`, bump the app version for each formal release, and let GitHub Actions build/publish. Use GitHub Revert to roll back a bad commit; do not rewrite history.
+- Main release workflow: `.github/workflows/windows-build.yml`; a `main` push runs validation and the Windows build. When the version's Release does not exist, a successful build creates the matching `vX.Y.Z` tag and GitHub Release with installer, blockmap and SHA-256. A direct version-tag push is also supported.
 
 ## SSTap legacy rules
 
