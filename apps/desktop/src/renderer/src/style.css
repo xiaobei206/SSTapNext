@@ -34,3 +34,9 @@
 .setting-row small{line-height:1.6}
 .speed-progress-wrap small{line-height:1.5}
 @media(prefers-reduced-motion:reduce){.connect-button{transition:none}.connect-button.ready:active:not(:disabled),.connect-button.connected:active:not(:disabled){transform:none}}
+
+
+/* 0.3.8: readable app version in the lower-left sidebar. */
+.sidebar-build{display:flex;align-items:center;color:#9eacc0;font-size:14px;font-weight:600;letter-spacing:.15px}
+.sidebar-version{margin:9px 0 0 15px;color:#8196b2;font-size:15px;font-weight:550;letter-spacing:.2px}
+.sidebar-version strong{margin-left:4px;color:#b9d7fb;font-size:16px;font-weight:750}

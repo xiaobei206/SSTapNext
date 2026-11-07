@@ -27,6 +27,7 @@ try
         "--tun-smoke-test" => await TunSmokeTest.RunAsync(),
         "--tun-diagnostic" => await TunSmokeTest.RunDiagnosticAsync(),
         "--tun-diagnostic-full" => await TunSmokeTest.RunFullDiagnosticAsync(),
+        "--tun-inspect-adapter" => TunRuntime.InspectAdapter(args.Skip(1).ToArray()),
         "--tun-run" => await TunRuntime.RunAsync(args.Skip(1).ToArray()),
         "--print-tun-test-config" => TunSmokeTest.PrintConfig(),
         _ => PrintUsage()
@@ -60,7 +61,7 @@ static void RedirectConsoleToLog()
 
 static int PrintUsage()
 {
-    Console.WriteLine("SSTap Next Agent 0.3.7");
+    Console.WriteLine("SSTap Next Agent 0.3.8");
     Console.WriteLine();
     Console.WriteLine("用法：");
     Console.WriteLine("  SstapNext.Agent.exe --doctor               检查运行环境与 sing-box");
@@ -68,6 +69,7 @@ static int PrintUsage()
     Console.WriteLine("  SstapNext.Agent.exe --tun-smoke-test        创建并验证 Wintun 适配器（需要管理员权限）");
     Console.WriteLine("  SstapNext.Agent.exe --tun-diagnostic        双栈 TUN 诊断（auto_route=false，不改路由/DNS）");
     Console.WriteLine("  SstapNext.Agent.exe --tun-diagnostic-full   完整 TUN 诊断（auto_route=true，短暂接管后恢复）");
+    Console.WriteLine("  SstapNext.Agent.exe --tun-inspect-adapter --id <GUID> 只读检查指定网络适配器状态");
     Console.WriteLine("  SstapNext.Agent.exe --tun-run --session <目录> 运行受桌面端心跳监控的系统 TUN 会话（管理员）");
     Console.WriteLine();
     Console.WriteLine("注意：--tun-smoke-test 不接管路由；--tun-run 会启用系统路由与 DNS 接管。");

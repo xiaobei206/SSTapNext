@@ -50,6 +50,16 @@ class TunController {
     this.getUserDataPath = options.getUserDataPath;
     this.getLauncherPath = options.getLauncherPath;
     this.spawnImpl = options.spawnImpl || spawn;
+    this.inspectAdapter = options.inspectAdapter || (async (adapterId) => {
+      const agentPath = this.getAgentPath();
+      if (!agentPath) throw new Error('无法定位 Agent，不能验证旧 TUN 网卡状态。');
+      const result = await captureProcess(agentPath, ['--tun-inspect-adapter', '--id', adapterId], {
+        spawnImpl: this.spawnImpl,
+        timeoutMs: 10000,
+      });
+      try { return JSON.parse(result.stdout); }
+      catch { throw new Error('Agent 网卡检查未返回有效 JSON；为保护网络，继续阻止 TUN 启动。'); }
+    });
     this.powershellPath = options.powershellPath || 'powershell.exe';
     this.onEvent = options.onEvent || (() => {});
     this.session = null;
@@ -140,6 +150,45 @@ class TunController {
   }
 
 
+  async _verifyInactiveAdapterForOldCleanupError(sessionDocument, status) {
+    // Only recover the specific post-exit false-positive emitted by 0.3.6/0.3.7.
+    // Generic cleanup_error states and sessions with an unconfirmed core PID stay blocked.
+    if (status?.corePid !== null
+      || status?.interfaceName !== 'SSTap Next'
+      || sessionDocument?.interfaceName !== 'SSTap Next') return null;
+
+    const detail = String(status.lastError || '');
+    const exitedProcess = detail.match(/sing-box PID\s+(\d+)\s+已退出/);
+    const adapterId = detail.match(/\bId=\{?([0-9a-f-]{36})\}?/i);
+    const reportedStatus = detail.match(/\bStatus=([A-Za-z]+)/);
+    const reportedAddresses = detail.match(/\bAddresses=\[([^\]]*)\]/);
+    if (!exitedProcess || !adapterId || reportedStatus?.[1] !== 'Down'
+      || !reportedAddresses || reportedAddresses[1].trim() !== '') return null;
+
+    const expectedId = `{${adapterId[1]}}`;
+    const current = await this.inspectAdapter(expectedId);
+    if (!current || current.found !== true || current.ambiguous === true
+      || current.inspectionError
+      || current.name !== 'SSTap Next'
+      || typeof current.description !== 'string'
+      || !current.description.startsWith('sing-tun Tunnel')
+      || String(current.id || '').replace(/[{}-]/g, '').toLowerCase() !== adapterId[1].replace(/-/g, '').toLowerCase()
+      || current.status !== 'Down'
+      || !Array.isArray(current.addresses)
+      || current.addresses.length !== 0
+      || current.expectedTunAddress !== '172.19.0.1'
+      || current.operationallyActive !== false) return null;
+
+    return {
+      exitedPid: Number(exitedProcess[1]),
+      adapterId: current.id,
+      adapterName: current.name,
+      adapterDescription: current.description,
+      status: current.status,
+      addresses: current.addresses,
+    };
+  }
+
   async recoverStaleSessions() {
     if (this.recoveryPromise) return this.recoveryPromise;
     this.recoveryPromise = (async () => {
@@ -182,6 +231,25 @@ class TunController {
           }
         }
         if (status?.status === 'cleanup_error') {
+          let verifiedInactiveAdapter = null;
+          try {
+            verifiedInactiveAdapter = await this._verifyInactiveAdapterForOldCleanupError(sessionDocument, status);
+          } catch (error) {
+            console.warn(`[TUN-RECOVERY] 旧会话网卡只读核验失败，保持启动锁：${error.message || error}`);
+          }
+          if (verifiedInactiveAdapter) {
+            const recoveryMarker = path.join(directory, '.verified-inactive-adapter-recovered-0.3.8');
+            await fs.writeFile(recoveryMarker, JSON.stringify({
+              recoveredAt: new Date().toISOString(),
+              rule: 'Agent confirmed sing-box exit; the exact previously reported adapter GUID is still Down with no unicast addresses.',
+              ...verifiedInactiveAdapter,
+            }, null, 2), 'utf8');
+            console.warn(`[TUN-RECOVERY] 已通过只读 Agent 核验确认旧 TUN 适配器已释放：${verifiedInactiveAdapter.adapterId}；保留原状态与日志，不删除网卡。`);
+            // Keep old status/session/log files as evidence. Re-check the live adapter
+            // on every future start rather than converting historical cleanup_error to success.
+            continue;
+          }
+
           const legacyReviewMarker = path.join(directory, '.legacy-cleanup-review-0.3.2');
           const known031StopSignalFailure = status.corePid == null
             && status.interfaceName === 'SSTap Next'

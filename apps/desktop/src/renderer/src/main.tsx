@@ -282,7 +282,11 @@ function App() {
             return <button key={item} className={`nav-item ${page === item ? 'active' : ''}`} onClick={() => setPage(item)}><span className="nav-icon">{icons[item]}</span>{labels[item]}</button>;
           })}
         </nav>
-        <div className="sidebar-bottom"><div className="build-dot" />系统接管版 0.3.7<div className="sidebar-muted">本地代理 + Windows TUN Agent</div></div>
+        <div className="sidebar-bottom">
+          <div className="sidebar-build"><span className="build-dot" />系统接管版</div>
+          <div className="sidebar-version">版本 <strong>v{__APP_VERSION__}</strong></div>
+          <div className="sidebar-muted">本地代理 + Windows TUN Agent</div>
+        </div>
       </aside>
 
       <main className="main-area">

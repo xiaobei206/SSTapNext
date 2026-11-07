@@ -42,6 +42,78 @@ internal static class TunRuntime
 
     private sealed record AdapterSnapshot(string Id, OperationalStatus Status, bool HasExpectedAddress);
 
+
+    public static int InspectAdapter(string[] args)
+    {
+        if (args.Length != 2 || !StringComparer.Ordinal.Equals(args[0], "--id")
+            || !Guid.TryParse(args[1], out var requestedId))
+        {
+            Console.WriteLine(JsonSerializer.Serialize(new { found = false, error = "用法：--tun-inspect-adapter --id <GUID>" }));
+            return 11;
+        }
+
+        try
+        {
+            var matches = NetworkInterface.GetAllNetworkInterfaces()
+                .Where(adapter => Guid.TryParse(adapter.Id, out var adapterId) && adapterId == requestedId)
+                .ToArray();
+            if (matches.Length != 1)
+            {
+                Console.WriteLine(JsonSerializer.Serialize(new
+                {
+                    found = false,
+                    ambiguous = matches.Length > 1,
+                    matchCount = matches.Length,
+                    requestedId = requestedId.ToString("B")
+                }, new JsonSerializerOptions(JsonSerializerDefaults.Web)));
+                return 0;
+            }
+
+            var adapter = matches[0];
+            string[] addresses;
+            try
+            {
+                addresses = adapter.GetIPProperties().UnicastAddresses
+                    .Select(item => item.Address?.ToString() ?? string.Empty)
+                    .Where(item => item.Length > 0)
+                    .ToArray();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(JsonSerializer.Serialize(new
+                {
+                    found = true,
+                    inspectionError = $"{ex.GetType().Name}: {ex.Message}",
+                    name = adapter.Name,
+                    description = adapter.Description,
+                    id = adapter.Id,
+                    status = adapter.OperationalStatus.ToString()
+                }, new JsonSerializerOptions(JsonSerializerDefaults.Web)));
+                return 0;
+            }
+
+            var hasExpectedAddress = addresses.Contains(ExpectedTunAddress, StringComparer.OrdinalIgnoreCase);
+            Console.WriteLine(JsonSerializer.Serialize(new
+            {
+                found = true,
+                name = adapter.Name,
+                description = adapter.Description,
+                id = adapter.Id,
+                status = adapter.OperationalStatus.ToString(),
+                type = (int)adapter.NetworkInterfaceType,
+                addresses,
+                expectedTunAddress = ExpectedTunAddress,
+                operationallyActive = adapter.OperationalStatus == OperationalStatus.Up || hasExpectedAddress
+            }, new JsonSerializerOptions(JsonSerializerDefaults.Web)));
+            return 0;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine(JsonSerializer.Serialize(new { found = false, error = $"{ex.GetType().Name}: {ex.Message}" }));
+            return 1;
+        }
+    }
+
     public static async Task<int> RunAsync(string[] args)
     {
         if (!Doctor.IsAdministrator())
