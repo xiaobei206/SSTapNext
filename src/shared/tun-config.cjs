@@ -2,6 +2,7 @@
 
 const net = require('node:net');
 const { buildSingBoxOutbound } = require('./node-parser.cjs');
+const { toClashApiConfig } = require('./singbox-traffic.cjs');
 
 const DEFAULT_TUN_NAME = 'SSTap Next';
 const DEFAULT_TUN_ADDRESS = ['172.19.0.1/30', 'fdfe:dcba:9876::1/126'];
@@ -234,6 +235,7 @@ function buildTunConfig(node, settings = {}, options = {}) {
         path: options.cachePath || 'sstap-next-cache.db',
         store_dns: true,
       },
+      ...(options.clashApi ? { clash_api: toClashApiConfig(options.clashApi) } : {}),
     },
   };
 
