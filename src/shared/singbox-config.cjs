@@ -1,6 +1,7 @@
 'use strict';
 
 const { buildSingBoxOutbound } = require('./node-parser.cjs');
+const { toClashApiConfig } = require('./singbox-traffic.cjs');
 
 const DEFAULT_PROXY_HOST = '127.0.0.1';
 const DEFAULT_PROXY_PORT = 20808;
@@ -23,7 +24,7 @@ function buildProxyConfig(node, options = {}) {
   const listenPort = assertPort(options.listenPort ?? DEFAULT_PROXY_PORT, '本地代理端口');
   const outbound = buildSingBoxOutbound(node, 'selected-proxy');
 
-  return {
+  const config = {
     log: { level: options.logLevel || 'warn', timestamp: true },
     inbounds: [
       {
@@ -44,6 +45,8 @@ function buildProxyConfig(node, options = {}) {
       final: 'selected-proxy',
     },
   };
+  if (options.clashApi) config.experimental = { clash_api: toClashApiConfig(options.clashApi) };
+  return config;
 }
 
 /**
