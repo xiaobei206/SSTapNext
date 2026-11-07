@@ -50,17 +50,57 @@ class TunController {
     this.getUserDataPath = options.getUserDataPath;
     this.getLauncherPath = options.getLauncherPath;
     this.spawnImpl = options.spawnImpl || spawn;
-    this.inspectAdapter = options.inspectAdapter || (async (adapterId) => {
-      const agentPath = this.getAgentPath();
-      if (!agentPath) throw new Error('无法定位 Agent，不能验证旧 TUN 网卡状态。');
-      const result = await captureProcess(agentPath, ['--tun-inspect-adapter', '--id', adapterId], {
-        spawnImpl: this.spawnImpl,
-        timeoutMs: 10000,
-      });
-      try { return JSON.parse(result.stdout); }
-      catch { throw new Error('Agent 网卡检查未返回有效 JSON；为保护网络，继续阻止 TUN 启动。'); }
-    });
     this.powershellPath = options.powershellPath || 'powershell.exe';
+    this.inspectAdapter = options.inspectAdapter || (async (adapterId) => {
+      const normalizedId = String(adapterId || '').replace(/[{}]/g, '');
+      if (!/^[0-9a-f-]{36}$/i.test(normalizedId)) {
+        throw new Error('历史网卡 GUID 格式无效，不能自动解除 TUN 清理锁。');
+      }
+
+      const script = [
+        "$ErrorActionPreference = 'Stop'",
+        \`$requested = [guid]'\${normalizedId}'\`,
+        "try {",
+        "  $matches = @(Get-NetAdapter -IncludeHidden -ErrorAction Stop | Where-Object { try { ([guid]$_.InterfaceGuid).ToString('D') -eq $requested.ToString('D') } catch { $false } })",
+        "  if ($matches.Count -ne 1) { [ordered]@{ found = $false; matchCount = $matches.Count; inspectionError = 'Get-NetAdapter 未能唯一定位历史 GUID' } | ConvertTo-Json -Compress; exit 0 }",
+        "  $adapter = $matches[0]",
+        "  $addresses = @(Get-NetIPAddress -InterfaceIndex $adapter.ifIndex -ErrorAction SilentlyContinue | ForEach-Object { [string]$_.IPAddress } | Where-Object { $_ })",
+        "  $rawStatus = [string]$adapter.Status",
+        "  $status = if ($rawStatus -in @('Down','Disconnected')) { 'Down' } else { $rawStatus }",
+        "  $active = ($status -eq 'Up') -or ($addresses -contains '172.19.0.1')",
+        "  [ordered]@{ found = $true; name = [string]$adapter.Name; description = [string]$adapter.InterfaceDescription; id = ([guid]$adapter.InterfaceGuid).ToString('B'); status = $status; rawStatus = $rawStatus; addresses = $addresses; expectedTunAddress = '172.19.0.1'; operationallyActive = $active } | ConvertTo-Json -Compress",
+        "} catch { [ordered]@{ found = $false; inspectionError = $_.Exception.Message } | ConvertTo-Json -Compress; exit 0 }"
+      ].join('; ');
+
+      let powershellFailure = null;
+      try {
+        const result = await captureProcess(this.powershellPath, [
+          '-NoLogo', '-NoProfile', '-NonInteractive', '-Command', script,
+        ], { spawnImpl: this.spawnImpl, timeoutMs: 12000 });
+        const output = result.stdout.replace(/^\\uFEFF/, '').trim().split(/\\r?\\n/).filter(Boolean).at(-1);
+        const inspected = JSON.parse(output || 'null');
+        if (inspected?.found === true) return inspected;
+        powershellFailure = inspected?.inspectionError || 'PowerShell 未找到该网卡';
+      } catch (error) {
+        powershellFailure = String(error.message || error);
+      }
+
+      // Use the read-only .NET Agent as an independent fallback when NetAdapter
+      // cmdlets are unavailable or cannot locate the exact historical GUID.
+      const agentPath = this.getAgentPath();
+      if (!agentPath) throw new Error(\`PowerShell 网卡核验失败（\${powershellFailure}），且无法定位备用 Agent。\`);
+      try {
+        const result = await captureProcess(agentPath, ['--tun-inspect-adapter', '--id', \`{\${normalizedId}}\`], {
+          spawnImpl: this.spawnImpl, timeoutMs: 10000,
+        });
+        const output = result.stdout.replace(/^\\uFEFF/, '').trim().split(/\\r?\\n/).filter(Boolean).at(-1);
+        const inspected = JSON.parse(output || 'null');
+        if (inspected?.found === true) return inspected;
+        throw new Error(inspected?.error || inspected?.inspectionError || 'Agent 未找到该网卡');
+      } catch (error) {
+        throw new Error(\`PowerShell 核验失败：\${powershellFailure}；Agent 备用核验失败：\${error.message || error}\`);
+      }
+    });
     this.onEvent = options.onEvent || (() => {});
     this.session = null;
     this.startPromise = null;
@@ -151,11 +191,10 @@ class TunController {
 
 
   async _verifyInactiveAdapterForOldCleanupError(sessionDocument, status) {
-    // Only recover the specific post-exit false-positive emitted by 0.3.6/0.3.7.
-    // Generic cleanup_error states and sessions with an unconfirmed core PID stay blocked.
-    if (status?.corePid !== null
-      || status?.interfaceName !== 'SSTap Next'
-      || sessionDocument?.interfaceName !== 'SSTap Next') return null;
+    // Match only the historical post-exit Wintun false-positive. Any unconfirmed
+    // process, different interface, changed GUID, or ambiguous diagnostic stays blocked.
+    if (status?.corePid != null || status?.interfaceName !== 'SSTap Next'
+      || (sessionDocument?.interfaceName && sessionDocument.interfaceName !== 'SSTap Next')) return null;
 
     const detail = String(status.lastError || '');
     const exitedProcess = detail.match(/sing-box PID\s+(\d+)\s+已退出/);
@@ -165,29 +204,36 @@ class TunController {
     if (!exitedProcess || !adapterId || reportedStatus?.[1] !== 'Down'
       || !reportedAddresses || reportedAddresses[1].trim() !== '') return null;
 
-    const expectedId = `{${adapterId[1]}}`;
+    const expectedId = \`{\${adapterId[1]}}\`;
     const current = await this.inspectAdapter(expectedId);
+    const normalizedExpected = adapterId[1].replace(/-/g, '').toLowerCase();
+    const normalizedCurrent = String(current?.id || '').replace(/[{}-]/g, '').toLowerCase();
     if (!current || current.found !== true || current.ambiguous === true
       || current.inspectionError
       || current.name !== 'SSTap Next'
       || typeof current.description !== 'string'
       || !current.description.startsWith('sing-tun Tunnel')
-      || String(current.id || '').replace(/[{}-]/g, '').toLowerCase() !== adapterId[1].replace(/-/g, '').toLowerCase()
-      || current.status !== 'Down'
+      || normalizedCurrent !== normalizedExpected
+      || !['Down', 'Disconnected'].includes(current.status)
       || !Array.isArray(current.addresses)
       || current.addresses.length !== 0
       || current.expectedTunAddress !== '172.19.0.1'
-      || current.operationallyActive !== false) return null;
+      || current.operationallyActive !== false) {
+      throw new Error(\`实时网卡核验不满足安全恢复条件：\${JSON.stringify({
+        found: current?.found, name: current?.name, description: current?.description,
+        id: current?.id, status: current?.status, addresses: current?.addresses,
+        operationallyActive: current?.operationallyActive, inspectionError: current?.inspectionError,
+      })}\`);
+    }
 
     return {
-      exitedPid: Number(exitedProcess[1]),
-      adapterId: current.id,
-      adapterName: current.name,
-      adapterDescription: current.description,
-      status: current.status,
-      addresses: current.addresses,
+      exitedPid: Number(exitedProcess[1]), adapterId: current.id,
+      adapterName: current.name, adapterDescription: current.description,
+      status: current.status, addresses: current.addresses,
+      rawStatus: current.rawStatus || current.status,
     };
   }
+
 
   async recoverStaleSessions() {
     if (this.recoveryPromise) return this.recoveryPromise;
@@ -232,45 +278,61 @@ class TunController {
         }
         if (status?.status === 'cleanup_error') {
           let verifiedInactiveAdapter = null;
+          let verificationError = null;
           try {
             verifiedInactiveAdapter = await this._verifyInactiveAdapterForOldCleanupError(sessionDocument, status);
           } catch (error) {
-            console.warn(`[TUN-RECOVERY] 旧会话网卡只读核验失败，保持启动锁：${error.message || error}`);
+            verificationError = String(error.message || error);
+            console.warn(\`[TUN-RECOVERY] 旧会话网卡只读核验失败，保持启动锁：\${verificationError}\`);
           }
           if (verifiedInactiveAdapter) {
-            const recoveryMarker = path.join(directory, '.verified-inactive-adapter-recovered-0.3.8');
-            await fs.writeFile(recoveryMarker, JSON.stringify({
-              recoveredAt: new Date().toISOString(),
-              rule: 'Agent confirmed sing-box exit; the exact previously reported adapter GUID is still Down with no unicast addresses.',
-              ...verifiedInactiveAdapter,
-            }, null, 2), 'utf8');
-            console.warn(`[TUN-RECOVERY] 已通过只读 Agent 核验确认旧 TUN 适配器已释放：${verifiedInactiveAdapter.adapterId}；保留原状态与日志，不删除网卡。`);
-            // Keep old status/session/log files as evidence. Re-check the live adapter
-            // on every future start rather than converting historical cleanup_error to success.
-            continue;
-          }
-
-          const legacyReviewMarker = path.join(directory, '.legacy-cleanup-review-0.3.2');
-          const known031StopSignalFailure = status.corePid == null
-            && status.interfaceName === 'SSTap Next'
-            && String(status.lastError || '').includes('TUN 接口 SSTap Next 仍然存在');
-
-          // 0.3.1 used CTRL_C_EVENT with a non-zero process-group id. Windows does
-          // not deliver that event to the target group, so its Agent could force-kill
-          // sing-box and leave a stale cleanup_error lock. Preserve the old session
-          // files and logs, but let the 0.3.2 elevated Agent perform its normal adapter
-          // ownership/Up-state guard before it starts a new core.
-          if (known031StopSignalFailure) {
+            const legacyStatusPath = path.join(directory, 'status.cleanup_error-legacy.json');
+            const originalStatus = await fs.readFile(statusPath, 'utf8');
             try {
-              await fs.writeFile(legacyReviewMarker, `Reviewed by SSTap Next 0.3.2 at ${new Date().toISOString()}\n`, { encoding: 'utf8', flag: 'wx' });
-              console.warn(`[TUN-RECOVERY] 已隔离已知 0.3.1 停止信号遗留锁 ${expectedId}；原日志和状态均保留，后续由新版 Agent 复核接口。`);
+              await fs.writeFile(legacyStatusPath, originalStatus, { encoding: 'utf8', flag: 'wx' });
             } catch (error) {
               if (error?.code !== 'EEXIST') throw error;
             }
-            continue;
-          }
 
-          throw new Error(`发现遗留 TUN 清理异常：${status.lastError || directory}。请勿再次启用系统接管，先检查日志。`);
+            const recoveredAt = new Date().toISOString();
+            const recoveredStatus = {
+              ...status, status: 'stopped_with_warning', corePid: null, updatedAt: recoveredAt,
+              lastError: \`0.3.9 已核实历史 sing-box PID \${verifiedInactiveAdapter.exitedPid} 已退出；同一网卡 \${verifiedInactiveAdapter.adapterId} 当前为 \${verifiedInactiveAdapter.status} 且没有 IP 地址。已解除旧清理锁；保留 Windows Wintun 设备对象及原始日志，不删除网卡。\`,
+            };
+            const temporaryStatusPath = \`\${statusPath}.recovering\`;
+            await fs.writeFile(temporaryStatusPath, JSON.stringify(recoveredStatus, null, 2), 'utf8');
+            await fs.rename(temporaryStatusPath, statusPath);
+            status = recoveredStatus;
+
+            const recoveryMarker = path.join(directory, '.verified-inactive-adapter-recovered-0.3.9');
+            await fs.writeFile(recoveryMarker, JSON.stringify({
+              recoveredAt, source: 'PowerShell Get-NetAdapter/Get-NetIPAddress (with .NET Agent read-only fallback)',
+              ...verifiedInactiveAdapter,
+            }, null, 2), 'utf8');
+            console.warn(\`[TUN-RECOVERY] 已确认历史 Wintun 已释放并正式解除旧 cleanup_error 锁：\${verifiedInactiveAdapter.adapterId}；原状态归档为 status.cleanup_error-legacy.json，日志保留。\`);
+          } else {
+            const legacyReviewMarker = path.join(directory, '.legacy-cleanup-review-0.3.2');
+            const known031StopSignalFailure = status.corePid == null
+              && status.interfaceName === 'SSTap Next'
+              && String(status.lastError || '').includes('TUN 接口 SSTap Next 仍然存在');
+
+            // 0.3.1 used CTRL_C_EVENT with a non-zero process-group id. Windows does
+            // not deliver that event to the target group, so its Agent could force-kill
+            // sing-box and leave a stale cleanup_error lock. Preserve old evidence and
+            // let the 0.3.2 elevated Agent perform its normal adapter ownership guard.
+            if (known031StopSignalFailure) {
+              try {
+                await fs.writeFile(legacyReviewMarker, \`Reviewed by SSTap Next 0.3.2 at \${new Date().toISOString()}\\n\`, { encoding: 'utf8', flag: 'wx' });
+                console.warn(\`[TUN-RECOVERY] 已隔离已知 0.3.1 停止信号遗留锁 \${expectedId}；原日志和状态均保留，后续由新版 Agent 复核接口。\`);
+              } catch (error) {
+                if (error?.code !== 'EEXIST') throw error;
+              }
+              continue;
+            }
+
+            const reason = verificationError ? \`；实时核验失败：\${verificationError}\` : '';
+            throw new Error(\`发现遗留 TUN 清理异常：\${status.lastError || directory}。请勿再次启用系统代理，先检查日志\${reason}。\`);
+          }
         }
         if (!status || !terminal.has(status.status)) {
           throw new Error(`遗留 TUN 会话在 30 秒内没有完成安全断开：${directory}。请先检查网卡和 Agent 日志。`);
@@ -279,6 +341,7 @@ class TunController {
           await fs.rm(path.join(directory, name), { force: true }).catch(() => {});
         }
       }
+      this._publish({ status: 'disconnected', connected: false, lastError: null });
       } catch (error) {
         this._publish({ status: 'cleanup_error', connected: false, lastError: String(error.message || error) });
         throw error;

@@ -61,7 +61,7 @@ static void RedirectConsoleToLog()
 
 static int PrintUsage()
 {
-    Console.WriteLine("SSTap Next Agent 0.3.8");
+    Console.WriteLine("SSTap Next Agent 0.3.9");
     Console.WriteLine();
     Console.WriteLine("用法：");
     Console.WriteLine("  SstapNext.Agent.exe --doctor               检查运行环境与 sing-box");

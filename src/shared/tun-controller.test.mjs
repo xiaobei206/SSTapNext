@@ -190,11 +190,13 @@ test('recovers the 0.3.6/0.3.7 inactive Wintun cleanup false-positive using exac
   assert.equal(started.status, 'running');
   assert.equal(inspectedId, adapterId);
   const existingFiles = await fs.readdir(staleDirectory);
-  assert.ok(existingFiles.includes('.verified-inactive-adapter-recovered-0.3.8'));
+  assert.ok(existingFiles.includes('.verified-inactive-adapter-recovered-0.3.9'));
+  assert.ok(existingFiles.includes('status.cleanup_error-legacy.json'));
   assert.ok(existingFiles.includes('status.json'));
-  assert.ok(existingFiles.includes('session.json'));
+  assert.equal(existingFiles.includes('session.json'), false, 'the stale session lock metadata must be retired');
   assert.equal(await fs.readFile(path.join(staleDirectory, 'sing-box.log'), 'utf8'), 'preserve-original-agent-evidence');
-  assert.equal(JSON.parse(await fs.readFile(path.join(staleDirectory, 'status.json'), 'utf8')).status, 'cleanup_error');
+  assert.equal(JSON.parse(await fs.readFile(path.join(staleDirectory, 'status.json'), 'utf8')).status, 'stopped_with_warning');
+  assert.equal(JSON.parse(await fs.readFile(path.join(staleDirectory, 'status.cleanup_error-legacy.json'), 'utf8')).status, 'cleanup_error');
   await controller.disconnect();
 });
 
