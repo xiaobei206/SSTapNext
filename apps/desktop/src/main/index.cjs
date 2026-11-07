@@ -401,6 +401,7 @@ async function flushTrafficStats() {
 
 function handleTrafficSample(sample) {
   if (!sample || typeof sample !== 'object') return;
+  let nodeTrafficStat = null;
   try {
     if (sample.mode === 'proxy' && typeof sample.nodeId === 'string' && stateCache
       && stateCache.nodes.some((node) => node.id === sample.nodeId)) {
@@ -424,7 +425,11 @@ function handleTrafficSample(sample) {
         }
       }
     }
-    if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('sstap:traffic-event', sample);
+    if (sample.mode === 'proxy' && typeof sample.nodeId === 'string' && stateCache?.nodes.some((node) => node.id === sample.nodeId)) {
+      nodeTrafficStat = stateCache.nodeTrafficStats[sample.nodeId] || null;
+    }
+    const payload = nodeTrafficStat ? { ...sample, nodeTrafficStat } : sample;
+    if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('sstap:traffic-event', payload);
     if (sample.final === true) void scheduleTrafficPersist(true);
   } catch (error) {
     console.error('[SSTap Next] 处理流量统计事件失败：', error);
