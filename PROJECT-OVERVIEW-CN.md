@@ -3,11 +3,11 @@
 ## 1. 项目标识与当前状态
 
 - 项目根目录（文件库）：`/sstap/SSTapNext/`
-- main 分支当前版本：**0.3.11**。
-- 当前功能开发版本：**0.3.12**，位于 `feature/sstap-rule-library-0312`，通过 PR #1 提交，尚未合并。
+- main 分支当前版本：**0.3.12**，PR #1 已 Squash 合并，正式源码已进入 main。
+- `v0.3.12` 正式 Release 正由 main 推送后的 Windows 发布工作流构建/发布；以 Actions run 结果和 GitHub Releases 页面为准。
 - 近期用户确认真实功能可用的历史版本：**0.3.5**（用户反馈系统级代理/YouTube 已恢复正常；不可将此反馈外推为 0.3.12 的实机验收）。
-- 0.3.12 增加原版 FQrabbit SSTap `.rules` 转换、规则库在线更新、分流页面规则管理、游戏规则叠加和优先级保护。Node CI、Windows 构建均通过的结论必须以 PR 最新 HEAD 的 Actions 状态为准；TUN/Wintun 实机循环仍需用户 Windows 设备验收。
-- 当前唯一可信开发入口：GitHub 仓库 `xiaobei206/SSTapNext`；功能开发分支 `feature/sstap-rule-library-0312`。新对话先读根目录 `HANDOVER.md`，不要再从旧 0.3.7 ZIP 或文件库历史包拼接源码。
+- 0.3.12 增加原版 FQrabbit SSTap `.rules` 转换、规则库在线更新、分流页面规则管理、游戏规则叠加和优先级保护。Node 86/86、依赖锁 704/704、sing-box 55/55、Windows x64 NSIS 构建均已在 PR 验证通过；真实 TUN/Wintun 循环仍需用户 Windows 设备验收。
+- 唯一可信开发入口：GitHub 仓库 `xiaobei206/SSTapNext` 的 `main`。这是个人项目，日常直接在 main 开发，不开 feature 分支、不建 PR；正式迭代递增版本号，main 提交触发 Windows 构建/Release，问题通过 GitHub Revert 回退。新对话先读根目录 `HANDOVER.md`，不要从旧 0.3.7 ZIP 拼接源码。
 
 ## 2. 用途与功能
 
@@ -95,16 +95,16 @@ GitHub 仓库 `xiaobei206/SSTapNext` 是当前源码的事实来源。版本归�
 1. 读 `PROJECT-OVERVIEW-CN.md`。
 2. 读唯一主日志 `PROJECT-DEVELOPMENT-LOG-CN.md`。
 3. 读 `HANDOVER.md`（0.3.12 当前交接）。
-4. 读取 PR #1 最新 HEAD、评论、CI 与 Windows Build Actions；不要假设 HEAD 和上一轮相同。
+4. 读取 main 最新 commit、版本号、最近 Actions 和 GitHub Release；不要依赖旧 PR 分支。
 5. 检查 `.rules` 解析器、ZIP 更新器、TUN route 顺序、Electron IPC、Renderer UI 和测试。
-6. 先在 PR 分支追加小而可验证的提交；不要把 0.3.12 代码直接写进 main。
-7. 合并前要求 PR 最新 HEAD 的 Node CI 与 Windows build 全绿；随后仍需真实 Windows TUN/Wintun 验收。
+6. 直接在 main 做小而可验证的提交；正式功能迭代先递增版本号并同步 package.json/package-lock/UI/Agent/doctor。
+7. main push 后确认 Node CI、Windows build 和 Release 都成功；出问题通过 GitHub Revert 回滚，不重写历史、不建立长期分支。随后仍需真实 Windows TUN/Wintun 验收。
 
 ## 8. 证据等级
 
 - 归档验证、Node 单测、锁文件、语法、BOM、CSS静态计数均按本次 `BUILD-REPORT` 记载。
 - Windows build、Agent编译、sing-box真实核心check、TS/Vite、NSIS、安装启动、Wintun、节点握手、公网出口和GUI验收必须分别有用户 Windows 输出或真实环境证据。
-- GitHub Actions 的 Node 回归与 Windows 安装包构建可以证明自动化、Agent 编译、核心配置校验、TS/Vite、NSIS 等构建阶段通过；它们不能证明真实节点握手、系统路由/DNS、UDP/QUIC 或多轮 TUN 清理已经在用户机器上验收。具体 PR HEAD 与 Actions 运行结果以 PR #1 为准。
+- GitHub Actions 的 Node 回归与 Windows 安装包构建可以证明自动化、Agent 编译、核心配置校验、TS/Vite、NSIS 等构建阶段通过；它们不能证明真实节点握手、系统路由/DNS、UDP/QUIC 或多轮 TUN 清理已经在用户机器上验收。以 main 对应 commit 的 Actions 运行结果及 GitHub Releases 实际资产为准。
 
 
 ## 9. 0.3.7 清理可靠性增量
