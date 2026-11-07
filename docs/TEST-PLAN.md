@@ -3,7 +3,7 @@
 ## 当前版本与 CI 范围
 
 - main 当前仍为 0.3.11；0.3.12 位于 PR #1 的功能分支，合并前只以 PR 最新 HEAD 对应的 Actions 结果作为验收证据。
-- GitHub CI 执行锁定依赖安装（npm ci）、完整 Node 自动化测试和 package-lock 一致性检查。
+- GitHub CI 执行锁定依赖安装（npm ci）、完整 Node 自动化测试和 package-lock 一致性检查；当前测试套件为 83/83。
 - package-lock 检查覆盖 704 个依赖引用；不得为“修复 CI”而弱化依赖版本范围校验。
 - 新规则库样式须满足项目全局最小字号 14px 的回归约束。
 
