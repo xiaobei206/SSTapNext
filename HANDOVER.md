@@ -8,32 +8,33 @@
 - Workflow artifact ID 13571501499，175,090,820 bytes。
 - **仍待用户实机：** 安装 0.3.16 后连接系统 TUN，验证错误消失、实时上下行累计、direct 不计入节点历史累计和安全断开清理。
 
-# SSTap Next — 当前交接摘要（2026-11-07）
+# SSTap Next — 当前交接摘要（2026-11-07 收尾基线）
 
-> 本节优先级高于下方历史记录。当前正式版本 v0.3.15 已发布；主分支目标版本为 0.3.16。
-
-- 仓库：`xiaobei206/SSTapNext`；仅 main 开发；不建立日常 feature 分支/PR；所有开发必须文档优先。
-- 当前 main package / Agent target：0.3.16（开发/验证中）；最新公开 Release：0.3.15 / https://github.com/xiaobei206/SSTapNext/releases/tag/v0.3.15
-- Release 构建 commit：`fab186b48b0597b76afc1a79dc6e7c1dd59dbe6b`；最新 main parser/test commit：`d0fbcd52c87aa94c60aeb054789e5fc786e71868`。
-- 本轮缺陷：0.3.13 批量 PING 把可达节点误判为超时。用户 PowerShell 原生 ping 65.49.237.84 得到 45/43/43ms、0% loss。
-- 根因：旧正则要求 `time` 或 `时间` 前缀；Windows OEM 中文前缀按 UTF-8 解码可能乱码。0.3.14 只按 ASCII RTT 分隔符、数字与 `ms` 提取；真实替换字符 fixture 已覆盖。
-- 自动验证：Node CI 98/98、lock 704/704；Windows Release 成功，sing-box 56/56，Agent/TS/Vite/NSIS/安装包 SHA 全部通过。
-- EXE：174,892,333 bytes；SHA-256 `61dc8bed3e08307e2b4d32105c0f5d539207ea10935d0bb552c0eb56b1abb007`。Blockmap 182,937 bytes；SHA-256 `91a246dd4120f4c33ce74e1bb4fb81f7205cfc6044d05bd904732a231447cb3d`。SHA sidecar 93 bytes；digest `463ce07f29966011507040624528a94c6a9ec56abd08a70afb1570c1bc9b1245`。Release API 确认三资产存在。
-- **仍待用户实机：** 安装 0.3.14 后对 65.49.237.84 批测，应显示约 43ms；再抽查其他可达/不可达节点。不可把 CI 作为实机验收。
-- 网络安全边界不变：不修改 Windows 系统代理、不操作主 CoreController/TUN、不切换/断开用户当前连接，不记录节点/订阅秘密。
-
-## 0.3.14 PING 修复结论
-
-运行时代码只改 `src/shared/batch-node-test.cjs` 的 ICMP RTT 文本识别；测试只新增乱码前缀和 `<1ms` 覆盖。版本字段同步 0.3.14。0.3.14 Release 已有 EXE、blockmap、SHA sidecar。下一项工作是用户实机结果，不要重复实现本次修复。
+- 仓库：`xiaobei206/SSTapNext`；唯一日常开发线为 `main`；正式版本 v0.3.16；`package.json`、`package-lock.json` 和 Agent 版本均为 0.3.16。
+- Release target commit：`6245eab7e953ff13c0f765691a8ad1692e15f14e`；Release：https://github.com/xiaobei206/SSTapNext/releases/tag/v0.3.16。
+- 正式 Release Node CI run [42365153162](https://github.com/xiaobei206/SSTapNext/actions/runs/42365153162)：107/107 PASS、lock 704/704 PASS。正式 Windows Release run [42365153123](https://github.com/xiaobei206/SSTapNext/actions/runs/42365153123)，job 128381544820：sing-box 58/58、Agent、TS/Vite、NSIS、安装包 SHA、EXE/blockmap/SHA sidecar 和 artifact 均成功。
+- 本次收尾开始时 main HEAD 为 `f3e27bfba1a3480317fa7555c9296dd38fc5d2fa`，比 release target 领先 1 个纯文档提交。当前 HEAD Node CI run 42365557674：107/107 PASS、lock 704/704 PASS；Windows run 42365557673 因版本 Release 已存在跳过完整打包，不能当作重新构建。
+- **尚待用户 Windows 10/11 实测：** 系统 TUN 实际启动、分流/出口/DNS、流量统计及 direct 归属、断开和至少 10 轮重连清理。逐项见 `docs/WINDOWS-ACCEPTANCE.md`。
+- **另有自动化缺口：** Agent 的非法 Clash API 形态已在源码中校验，但当前没有单独的 .NET 行为级 harness 实际执行所有负向样例；见 `docs/TEST-PLAN.md`。不把源码存在校验条件等同于负向测试已通过。
+- 当前唯一第一动作：在用户 Windows 机器安装 v0.3.16，先做普通代理和无路由 smoke test，再按验收清单进行真实 TUN 测试；不改运行时代码，除非实测发现可复现缺陷。
 
 
----
+
+## 0.3.14 PING 修复结论（历史版本记录；当前验收以 v0.3.16 清单为准）
+
+- 0.3.14 曾修复 Windows 中文 ping.exe 输出乱码导致有效 RTT 被误判为超时的问题；历史证据和实测对照见 `docs/RELEASE-0.3.14.md` 与开发日志。
+- 该旧版本的待办已经由后续版本取代；当前不再把“安装 0.3.14”作为下一步。若批量 PING 仍有异常，应在当前 v0.3.16 上复现并记录。
+- 最新发布与剩余验收状态见本文件开头、`START HERE NEXT GPT.md` 和 `docs/WINDOWS-ACCEPTANCE.md`。
+
+
 
 # SSTap Next — historical architecture and handover notes
 
-## Current baseline
+> 以下内容是 0.3.12 / 0.3.13 开发阶段的历史归档；旧版本与“当前”状态仅对当时成立，不可覆盖本文件顶部 v0.3.16 收尾摘要。
 
-- Version: `0.3.12`
+## Historical baseline at the time of the 0.3.12 rule-library release
+
+- Version at that time: `0.3.12`
 - Release: `v0.3.12` is the SSTap legacy rule-library implementation; the canonical source is the `main` branch.
 - Architecture: Electron main/preload + React/TypeScript renderer; shared Node CJS modules; .NET 10 Windows Agent; sing-box 1.14.x; Wintun TUN inbound.
 - Development workflow: this is a solo project. Work directly on `main`; do not create feature branches or PRs for routine development. Make focused commits on `main`, bump the app version for each formal release, and let GitHub Actions build/publish. Use GitHub Revert to roll back a bad commit; do not rewrite history.
@@ -98,14 +99,15 @@ The Windows build script runs Node tests, 54 protocol/mode/DNS sing-box combinat
 - 正式交付递增 SemVer，统一同步所有版本字段，更新 CHANGELOG 和 docs/RELEASE-X.Y.Z.md。直接提交 main，由 GitHub Actions 构建并发布；确认 EXE、blockmap 和 SHA-256 三个资产存在后才算完成。
 - 故障回滚优先使用 GitHub Revert；不重写历史、不强推。
 
-## 当前发布和代码状态
+## 当前发布和代码状态（已同步至 v0.3.16）
 
-- 当前正式版本：0.3.12；Tag：v0.3.12。
-- Release：https://github.com/xiaobei206/SSTapNext/releases/tag/v0.3.12
-- 0.3.12 规则库代码合并提交：8f4be60d480e798bf3d17291230454df70674c86。
-- EXE：SSTap.Next-0.3.12-x64.exe；SHA-256：42c700f4234b50e1ee31392d84d405954c3ad773aa8778201914900a792f3cdd。
-- Node 测试 86/86、package-lock 704/704、sing-box 55/55、Windows x64 Agent、TypeScript/Vite、NSIS、安装包 SHA 验证均有对应 PR 最新 HEAD / main 发布流水线成功证据。具体 run ID、URL 和验证边界以 START HERE NEXT GPT.md 为准。
-- **未完成的是用户 Windows 10/11 实机验收**，不是 Release 构建。真实规则库下载、Proxy/Direct 实际路由、失败回滚、TUN 生命周期互斥、真实节点/UDP/QUIC、10 轮 Wintun 清理均须按 docs/WINDOWS-ACCEPTANCE.md 记录，不能把 CI 通过冒充实机通过。
+- 当前正式版本：**0.3.16**；Tag / Release：https://github.com/xiaobei206/SSTapNext/releases/tag/v0.3.16。
+- Release target commit：`6245eab7e953ff13c0f765691a8ad1692e15f14e`；当前 main HEAD（本次收尾开始时）：`f3e27bfba1a3480317fa7555c9296dd38fc5d2fa`，后者只是文档收尾提交。
+- 正式 Release 自动验证：Node 107/107、lock 704/704、sing-box 配置 58/58、.NET 10 Agent、TypeScript/Vite、NSIS、安装包 SHA 与三个 Release 资产全部成功。详细 URL、大小和摘要见 `docs/RELEASE-0.3.16.md`。
+- 剩余不是发布构建，而是用户 Windows 10/11 实机验收：规则库行为、批量测速隔离、真实 TUN、统计归属、路由/DNS 恢复与重复重连。
+- 任何旧章节里“当前仍为 0.3.12”“0.3.13 尚未实现”等内容都是当时的历史工作记录，不能作为当前状态；以下历史架构记录只供追溯。
+
+
 
 ## 当前代码关键约束
 
@@ -119,6 +121,8 @@ The Windows build script runs Node tests, 54 protocol/mode/DNS sing-box combinat
 
 
 ---
+
+> **历史记录提示：** 从下一节开始的 0.3.13 实施阶段、早期 0.3.12 状态与旧路线均保留作开发历史；其中“尚未实现/当前版本”等措辞只描述当时，不代表当前仓库。当前状态只看本文件顶部的 v0.3.16 收尾摘要及 START HERE。
 
 # 0.3.13 批量节点检测与测速交接（2026-11-07，需求/设计阶段）
 

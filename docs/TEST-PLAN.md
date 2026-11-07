@@ -1,19 +1,18 @@
-## 0.3.16 TUN Clash API allowlist hotfix (automated validation complete; Windows real-device pending)
+## v0.3.16 — TUN Clash API 白名单修复（Release/CI 完成；实机待验）
 
-- [x] Agent build passes and the new allowlist keeps root-level `endpoints` forbidden.
-- [x] Legacy-safe configs without `clash_api` remain accepted by config checks.
-- [x] Loopback `127.0.0.1:<1..65535>` plus 64 hex secret accepted by the implementation and generated sing-box config.
-- [ ] `0.0.0.0`, LAN IP, `::1`/IPv6, port 0/out of range, short/invalid secret, duplicate or extra fields all rejected.
-- [x] Fixed sing-box v1.14.4 configuration matrix **58/58** and Node suite / lock validation pass (107/107 tests, lock 704/704).
-- [x] Full Windows x64 installer build genuinely ran for v0.3.16, including Agent, TS/Vite, NSIS, installer SHA, Release publish and artifact upload.
-- [ ] v0.3.16 EXE, blockmap, SHA-256 sidecar exist and asset digest matches build log.
-- [ ] Windows real device: TUN starts after UAC, telemetry updates, disconnect cleanup and direct-traffic attribution work (NOT RUN until user confirms).
+- [x] .NET 10 Agent 在 v0.3.16 完整 Windows Release workflow 中成功编译；实现保留根级 `endpoints` 禁止规则。
+- [x] 兼容不含 `clash_api` 的旧配置；生成配置使用 `127.0.0.1:<合法端口>` 与 64 位 hex secret。
+- [x] 固定 sing-box 1.14.4 配置矩阵 **58/58 PASS**；Node suite **107/107 PASS**；package-lock **704/704 PASS**。
+- [x] v0.3.16 完整 Windows x64 Release run [42365153123](https://github.com/xiaobei206/SSTapNext/actions/runs/42365153123) 成功执行 Agent、TS/Vite、NSIS、安装包验证、SHA 与 Release/artifact 上传。
+- [x] GitHub Release API 已核实 v0.3.16 的 EXE、blockmap、SHA-256 sidecar 三个资产均存在；具体大小与摘要见 `docs/RELEASE-0.3.16.md`。
+- [ ] **行为级负向测试 NOT RUN：** `0.0.0.0`、LAN、`::1`/IPv6、非法端口、短/非 hex 密钥、重复/额外字段和根级 `endpoints` 等拒绝逻辑尚无独立 .NET 测试 harness 覆盖。源码校验条件存在、Agent 编译成功，不等于这些恶意输入已实际执行测试。
+- [ ] Windows 10/11 实机：TUN 在 UAC 后启动、实时流量、direct 归属、断开清理和重复重连均未提供实测结果，保持 NOT RUN。
 
-Design and release target: `docs/RELEASE-0.3.16.md`; root-level `endpoints` ban and all existing TUN safety policies must remain intact.
+设计与发布记录：`docs/RELEASE-0.3.16.md`；所有现有 Agent/TUN 安全校验必须保持 fail-closed。CI 与 Release 资产核验不替代实机验收。
 
-## 0.3.15 实时流量统计与 UI 可读性（已实现，待自动化和实机验证）
+## 0.3.15 实时流量统计与 UI 可读性（功能已由 v0.3.16 发布承载；历史验证说明）
 
-设计依据：LIVE-TRAFFIC-AND-UI-READABILITY.md。运行时代码已推送 main；尚未将自动化、Windows 构建或实机验收标记为通过。
+设计依据：`docs/LIVE-TRAFFIC-AND-UI-READABILITY.md`。本节原记录 0.3.15 实现阶段的验收方案；自动化与 Windows 构建结果已由 v0.3.16 正式 Release 证据覆盖。Windows 实机功能验收仍 NOT RUN，见当前顶部条目和 `docs/WINDOWS-ACCEPTANCE.md`。
 
 实现覆盖：
 - TrafficMonitor 基于固定核心 Clash API /connections 的 uploadTotal / downloadTotal 分别建立会话累计和速率。
@@ -35,18 +34,17 @@ Windows 实机验收（NOT RUN，CI 通过也不能替代）：
 - Clash API 短时失败只显示“暂不可用”，累计不清零；secret 不出现在 IPC/日志；断开后端口退出、临时配置清理。
 - 全部页面普通文字及 small 至少 14px；左下角版本号 14px、常规字重、弱颜色；节点列表横向滚动、缩放和窄窗口正常。
 
-# SSTap Next 0.3.14 — 测试计划与验证边界
+# SSTap Next — 测试计划与验证边界（当前正式版本 v0.3.16）
 
-## 当前版本与 CI 范围
+## 历史测试范围（0.3.12 / 0.3.14 阶段记录）
 
-- 当前正式版本为 0.3.14；Release：https://github.com/xiaobei206/SSTapNext/releases/tag/v0.3.14。上一正式版本为 v0.3.13。
-- 这是个人项目，日常只在 main 开发，不建立 feature 分支或 PR。每项开发都必须先更新文档（目标、现状、设计、影响文件、安全约束、验收与测试），再修改代码；上下文结束前必须完成交接文档。
-- main 发布 commit：8f4be60d480e798bf3d17291230454df70674c86；该版本 Node CI run 42344552127、Windows Release run 42344552136 均成功。
-- 当前代码变更的验证证据：Node tests 86/86、package-lock 704/704、sing-box 55/55、Windows x64 Agent、TypeScript/Vite、NSIS 和 SHA-256 均通过。PR 最新功能 HEAD 的 run：42343664603 / 42343664600；main 发布 run：42344552127 / 42344552136。
-- 之后 main 文档提交对应 CI run 42344692593 和 Windows workflow run 42344692572 也成功；由于 v0.3.12 Release 已存在，文档提交不会重建/覆盖安装包。每轮新开发仍必须核对本次最新 SHA 对应的 run。
-- package-lock 检查覆盖 704 个依赖引用；不得为“修复 CI”而弱化依赖版本范围校验。
-- 新规则库样式须满足项目全局最小字号 14px 的回归约束。
-- 上述 CI/构建证据不等于用户 Windows 10/11 实机验收；真实规则库行为、节点出口、DNS、UDP/QUIC、TUN/Wintun 仍按 WINDOWS-ACCEPTANCE.md 逐项记录。
+本节以下内容保留较早版本的测试范围和当时的 run ID，供追溯历史使用；它们不替代上方 v0.3.16 的最新验证记录。
+
+- 0.3.12 规则库功能发布 commit：`8f4be60d480e798bf3d17291230454df70674c86`；该阶段 Node 86/86、lock 704/704 和 sing-box 55/55 有对应成功证据。
+- 0.3.14 PING 解析修复使用的历史 Node CI run 为 `42353385323`（98/98 PASS），Windows Release run 为 `42353296447`（sing-box 56/56 及完整 Windows 构建通过）。
+- package-lock 的 704 项引用完整性仍是当前检查约束；不得为了“修复 CI”而弱化依赖版本范围校验。
+- 历史自动化与构建结果均不等于用户 Windows 10/11 实机验收；当前实机范围见 `docs/WINDOWS-ACCEPTANCE.md`。
+
 
 
 ## 0.3.13：批量节点检测与测速（已发布；用户实机验收进行前）

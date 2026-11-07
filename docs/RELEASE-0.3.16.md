@@ -45,6 +45,12 @@
 - Release target commit: `6245eab7e953ff13c0f765691a8ad1692e15f14e`。
 - Workflow artifact: `SSTapNext-main-Windows-x64`，ID `13571501499`，175,090,820 bytes。
 
+## 收尾核验状态（2026-11-07）
+
+- Release API 已核实本节列出的 EXE、blockmap、SHA-256 sidecar 三项资产实际存在；Release target commit 与构建 run 见上文。
+- 正式 Release CI：107/107 Node 测试、704/704 lock 引用、sing-box 58/58、Agent、TS/Vite、NSIS、安装包校验及发布上传均成功。
+- main 后续文档-only 提交不改变 v0.3.16 运行时代码或已发布安装包；对应 Windows workflow 因同版本 Release 已存在而跳过新的打包步骤，不作为第二次完整 build 的证据。
+
 ## Windows 10/11 实机验收（仍 NOT RUN）
 
 - [ ] 安装 0.3.16 后启动系统 TUN，不再报外部控制接口拒绝错误。

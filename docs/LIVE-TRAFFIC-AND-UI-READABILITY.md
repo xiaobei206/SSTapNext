@@ -1,6 +1,6 @@
 # 实时流量统计与 UI 可读性（0.3.15）
 
-状态：**代码已推送 main，待自动化/Windows 验证**。当前公开 Release 仍为 0.3.14；本轮 main/package 目标版本为 0.3.15（尚未发布）。
+状态：**功能已随 v0.3.15 引入，并包含在 v0.3.16 正式 Release 中；自动化与完整 Windows x64 构建已通过，真实 Windows 10/11 验收仍 NOT RUN**。当前正式 Release：https://github.com/xiaobei206/SSTapNext/releases/tag/v0.3.16。自动化证据为 Node 107/107、lock 704/704、sing-box 配置 58/58；Agent 白名单修复与安装包校验见 `docs/RELEASE-0.3.16.md`。
 
 ## 1. 用户目标
 
@@ -109,7 +109,7 @@
 - 验收：构建 .NET 10 Agent；验证无 clash_api 的旧配置继续通过、带合法 loopback+secret 配置通过、0.0.0.0 / LAN / IPv6 / 无效端口 / 短密钥 / 额外字段被拒绝；再跑实际 sing-box 配置矩阵和完整 Windows build。
 - 代码修改前记录；此错误不应通过删除整个 Agent 检查来规避。
 
-## 8. TUN Agent 白名单修复与版本发布
+## 8. TUN Agent 白名单修复与版本发布（已完成；以下为历史实施记录）
 
 - 已在 main 发现并修复 Agent 拒绝 `experimental.clash_api` 的不兼容：根级 `endpoints` 继续禁止，TUN Clash API 只允许 `127.0.0.1:<valid port>` + 64 位 hex secret，且只接受 `external_controller` 和 `secret` 两字段；其他 external controller 形态仍 fail-closed。
 - v0.3.15 Release 已存在且不应覆盖。此次修复版本目标提升到 **0.3.16**，完整发布计划写入 `docs/RELEASE-0.3.16.md`。

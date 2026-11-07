@@ -3,7 +3,7 @@
 ## 1. 项目标识与当前状态
 
 - GitHub 仓库：`https://github.com/xiaobei206/SSTapNext`；main 是唯一可信开发线。
-- 最新公开 Release：**0.3.15**；https://github.com/xiaobei206/SSTapNext/releases/tag/v0.3.15。当前正式版本与 main package/Agent 版本均为 **0.3.16**。该版本修复 v0.3.15 实测发现的 TUN Agent 错误拒绝 Clash API 问题，Node CI 107/107、lock 704/704、sing-box 58/58 及完整 Windows 构建已通过；实机 TUN 验收仍待用户机器执行。
+- 最新公开正式 Release：**v0.3.16**；https://github.com/xiaobei206/SSTapNext/releases/tag/v0.3.16。当前 main package/package-lock/Agent 版本均为 **0.3.16**。Release target commit 为 `6245eab7e953ff13c0f765691a8ad1692e15f14e`；Node CI 107/107、lock 704/704、sing-box 58/58 和完整 Windows x64 安装包构建均已通过。当前 main 的最新文档基线在本次收尾开始时为 `f3e27bfba1a3480317fa7555c9296dd38fc5d2fa`，其 Node CI 亦通过；真实 Windows TUN、流量统计和断开清理仍须实机验收。
 - 0.3.12 功能代码进入 main 的发布 commit：`8f4be60d480e798bf3d17291230454df70674c86`。其后的 main 提交为交接/文档维护，不代表另一个程序版本；新对话必须动态检查 main 最新 SHA。
 - 0.3.12 Release 已含 Windows x64 安装程序、blockmap 和 SHA-256。发布工作流 run `42344552136`、Node CI run `42344552127` 均成功；PR 最新功能 HEAD 的 Node 86/86、package-lock 704/704、sing-box 55/55、Agent、TS/Vite、NSIS 构建也通过。
 - 0.3.12 增加原版 FQrabbit SSTap `.rules` 转换、规则库在线更新、分流页面规则管理、游戏规则叠加和优先级保护。**真实 TUN/Wintun、规则库运行时行为和节点公网链路仍需用户 Windows 设备验收**，见 `docs/WINDOWS-ACCEPTANCE.md`。

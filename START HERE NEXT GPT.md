@@ -44,33 +44,34 @@
 - 唯一开发入口：main；不新建 feature 分支或 PR。
 - 当前正式 Release：v0.3.16（2026-11-07），https://github.com/xiaobei206/SSTapNext/releases/tag/v0.3.16
 - 当前公开 Release：v0.3.16；main package / Agent version 为 0.3.16；上一正式版本：v0.3.15。
-- 0.3.14 Release 构建 commit：`fab186b48b0597b76afc1a79dc6e7c1dd59dbe6b`；最新 parser/test main commit：`d0fbcd52c87aa94c60aeb054789e5fc786e71868`。
+- v0.3.16 Release target commit：`6245eab7e953ff13c0f765691a8ad1692e15f14e`；本次收尾开始时 main HEAD：`f3e27bfba1a3480317fa7555c9296dd38fc5d2fa`（比发布目标只多一个文档提交，运行时代码一致）。
 - 旧分支 `feature/sstap-rule-library-0312` 不再使用；PR #1 仅是历史迁移记录。
 
-### 最新已知自动化验证证据（0.3.14）
+### 最新自动化与发布证据（0.3.16，已核验至 2026-11-07）
 
-- Node CI run `42353385323`，最新代码 SHA `d0fbcd52c87aa94c60aeb054789e5fc786e71868`：success；npm test **98/98 PASS**；verify:lock **704/704 PASS**。
-- Windows Release run `42353296447` / job `128345843932`：success；真实执行 Windows 构建、sing-box **56/56**、Agent、TS/Vite、NSIS、installer SHA 验证、Release 发布及 artifact 上传。
-- EXE SHA-256：`61dc8bed3e08307e2b4d32105c0f5d539207ea10935d0bb552c0eb56b1abb007`；Release API 已核实 EXE、blockmap、SHA sidecar 三项资产。
-- Windows 构建目标 `fab186b48b0597b76afc1a79dc6e7c1dd59dbe6b` 与最新 parser/test SHA 的运行时代码一致；后续仅补测试样本的真实乱码字符和注释。
-- 新一轮开发必须核对当前 SHA Actions，不能复用历史 run 证明新提交通过。
+- 正式 Release：v0.3.16，https://github.com/xiaobei206/SSTapNext/releases/tag/v0.3.16；Release target commit：`6245eab7e953ff13c0f765691a8ad1692e15f14e`。根 `package.json`、`package-lock.json` 和 Agent 版本均为 0.3.16。
+- Release Node CI run [42365153162](https://github.com/xiaobei206/SSTapNext/actions/runs/42365153162)：`npm test` **107/107 PASS，0 fail**；`npm run verify:lock` **704/704 PASS**。
+- 完整 Windows Release run [42365153123](https://github.com/xiaobei206/SSTapNext/actions/runs/42365153123)，job `128381544820`：成功执行 package-lock 校验、Build-Windows、sing-box **58/58**、.NET 10 Agent、TypeScript/Vite、NSIS、安装包 SHA 校验、Release 发布和 artifact 上传。
+- Release 资产已通过 GitHub Release API 核实：EXE 174,898,679 bytes，SHA-256 `68c7094f74ef50c85ca96e9e07110be9397703fbaa915233a4634e5d8292261d`；blockmap 182,455 bytes；SHA-256 sidecar 93 bytes。完整资产和各自摘要见 `docs/RELEASE-0.3.16.md`。
+- 本次收尾开始时 main HEAD 为 `f3e27bfba1a3480317fa7555c9296dd38fc5d2fa`，仅比 Release target 多 1 个文档提交，没有运行时代码差异。该 HEAD 的 Node CI run [42365557674](https://github.com/xiaobei206/SSTapNext/actions/runs/42365557674) 也成功，107/107 测试与 704/704 锁文件检查通过。
+- 注意：当前 HEAD 的 Windows workflow run [42365557673](https://github.com/xiaobei206/SSTapNext/actions/runs/42365557673) 虽为 success，但因 v0.3.16 Release 已存在，Build/安装包校验/发布步骤被 skip。它不是一次新的完整安装包构建；正式包完整构建证据是 Release target 的 run 42365153123。
+- 新提交之后必须再核对对应 SHA 的 Actions；不要将文档-only 提交的绿色工作流说成重建了安装包。
 
 ### 重要验证边界
 
-**自动化/CI 已通过，不代表用户 Windows 机器上的真实网络行为已验收。**
+**CI 与安装包构建通过，不代表用户 Windows 10/11 实机的代理、系统路由/DNS、UDP/QUIC 或 TUN 清理已经验收。**
 
-截至本交接，尚无用户 Windows 10/11 实机结果可以证明 0.3.12 的以下事项已完成：
+当前仍须在用户机器上确认（均为 **NOT RUN / 未提供实测记录**）：
 
-- 首次下载上游 SSTap 完整规则库、规则总数/CIDR 数量/上游 SHA 展示；
-- 游戏规则 Proxy/Direct 在实际网络中的路由结果，尤其与大陆大范围 CIDR 重叠时的优先级；
-- 规则库更新失败后旧版本/current pointer/已选规则保持可用；
-- TUN active/transitioning/cleanup_error 时规则更新与路由设置锁定，以及规则更新期间拒绝并发 TUN 启动；
-- 真实节点握手、公网出口、浏览器业务、DNS、UDP/QUIC；
-- 至少 10 轮真实 TUN connect → disconnect → reconnect，以及 Wintun 清理残留判据。
+- 安装 v0.3.16，系统 TUN 在 UAC 后能启动，不再出现 Agent 拒绝 Clash API 的错误；Global / bypass-cn / rule 模式均可运行。
+- 本地代理和 TUN 的实时上/下行速率、分开累计、断开 final flush、重连计数重置、跨重启的节点累计；TUN 统计明确包含 Direct 流量，且不将 TUN 总量写入某个节点的个人累计。
+- 规则库首次下载、Proxy/Direct 路由优先级、失败更新保留 last-known-good、TUN 生命周期与规则更新互斥。
+- 批量节点检测 1/2/4/8/16/32 并发、取消后的进程/端口/临时文件清理；不切换活动节点、不修改 Windows 系统代理、不打断已有连接。
+- 无路由 TUN smoke test；全部通过后，执行真实 TUN connect → disconnect → reconnect 至少 10 轮，核对核心退出、路由/DNS 恢复和 Wintun 资源判据。
+- 真实节点握手、公网出口、浏览器业务、DNS、IPv6（适用时）及 UDP/QUIC；最后检查统计 UI、节点表排序/布局与字号。
+- Agent 源码实现了非法 Clash API 形态的拒绝条件，但仓库当前没有独立的 .NET 行为级测试来实际执行所有恶意配置样例；该负向行为测试仍未运行，不要误标为已通过。
 
-具体验收逐项见 docs/WINDOWS-ACCEPTANCE.md。不要把这些写成已通过；实际由用户机器测试后逐项记录。
-
----
+开始真实 TUN 前，按 `docs/WINDOWS-ACCEPTANCE.md` 的 smoke-test 与停止条件执行；遇到 `cleanup_error`、未知网卡归属或路由/DNS 不一致应停止，不手动删除网卡、不重置 Windows 网络。
 
 ## 2. 项目是什么、核心结构在哪里
 
@@ -154,7 +155,7 @@ npm.cmd run validate:core
 5. docs/TEST-PLAN.md —— 自动化范围和 CI/实机验证边界。
 6. docs/WINDOWS-ACCEPTANCE.md —— 真实 Windows 实机验收清单。
 7. docs/SSTAP-RULE-CONVERSION.md —— .rules 原格式、转换、规则优先级。
-8. docs/GITHUB-RELEASES.md 与 docs/RELEASE-0.3.12.md —— 当前发布链路与 0.3.12 发布内容。
+8. docs/GITHUB-RELEASES.md 与 docs/RELEASE-0.3.16.md —— 当前发布链路与当前版本；需要研究原版规则库时再查历史 docs/RELEASE-0.3.12.md。
 9. 依任务读取 docs/DECISIONS.md、docs/CORE-UPGRADE.md 等专题文档。
 10. 最后读相关代码和测试，不要先写代码再倒推设计。
 
@@ -170,21 +171,24 @@ GitHub 最新状态每次都应现查：
 
 ## 5. 当前工作队列（接手后从这里开始）
 
-### P0 — 先完成 0.3.12 Windows 实机验收
+### P0 — 完成 v0.3.16 Windows 实机验收（当前唯一首要动作）
 
-不要先做无关重构。用户机器尚未提供以下实测证据，按 docs/WINDOWS-ACCEPTANCE.md 的顺序执行并记录：
+正式 Release 与 CI/Windows 构建已经完成。当前不要进行无关重构或覆盖 v0.3.16 资产。请按 `docs/WINDOWS-ACCEPTANCE.md` 执行并逐项记录：
 
-1. 安装并启动 0.3.12，核对版本显示、启动、节点/订阅、测速和字号。
-2. 首次下载 FQrabbit/SSTap-Rule 规则库；核对上游 commit SHA、规则数量、CIDR 数和更新时间。
-3. 核对至少一条头字段为 0 的游戏 Proxy 规则和一条头字段为 1 的 Direct 规则。
-4. 在真实 TUN 下核对三层顺序：private/LAN → 用户选择规则 → 自动大陆宽表 → GeoSite/GeoIP fallback。特别测试游戏 Proxy CIDR 与大陆 Direct CIDR 重叠的情况。
-5. TUN running、启动/停止/recovery、cleanup_error 时，确认规则更新、启停选择、分流/DNS 设置均被阻止；更新进行中 TUN 启动也必须被主进程拒绝。
-6. 模拟网络中断/无效 ZIP/损坏规则文件，确认失败不切换 current pointer，原规则和用户选择继续可用。
-7. 执行无路由 smoke test；全部通过后再做真实 TUN。真实 TUN 至少 10 轮 connect → disconnect → reconnect，检查核心退出、路由/DNS 恢复、Down 无地址适配器的清理判断和 Up/172.19.0.1 负向保护。
-8. 独立验收真实节点公网出口、DNS、浏览器业务、UDP/QUIC。不能用 curl 的单个 HTTP 状态替代完整浏览器/UDP 体验。
+1. 安装官方 v0.3.16，核对版本显示和安装包；资产与摘要见 `docs/RELEASE-0.3.16.md`。
+2. 先验证普通本地代理、节点选择、订阅、PING/TCPING/代理延迟/下载测速和批量检测；确认活动节点/系统代理未被批测切换。
+3. 验证 SSTap 规则库下载与更新、Proxy/Direct 动作、规则优先级；对更新失败/损坏 ZIP 确认旧版本和已选规则保持可用。
+4. 运行无路由 TUN smoke test。只有 smoke test、普通代理和前后路由/DNS快照均正常后，才进入真实 TUN。
+5. 启动系统接管，确认 Agent 不再报 Clash API 白名单错误；分别验证 Global、bypass-cn、rule 模式，检查实际出口、DNS、浏览器业务和 UDP/QUIC。
+6. 验证上传/下载实时速率及分项累计、本地代理节点历史累计、TUN 含直连的系统会话累计、断开 final flush、重连重置和应用重启后持久化。
+7. 至少执行 10 轮真实 TUN connect → disconnect → reconnect；检查核心退出、物理默认路由/DNS 恢复以及 Up/仍带 `172.19.0.1` 时的 fail-closed 保护。Down 且无 TUN 地址的持久化接口对象不能仅因仍存在就被误报为活动残留。
+8. 测试 `cleanup_error`、TUN 转换中和规则更新中的并发互斥；发现错误时停止，不以删除网卡、route delete、Winsock reset 或清 DNS 绕过保护。
+9. 测试完成后，把版本、模式、可复现步骤、脱敏日志、结果与日期填入验收文档。节点 URI、密码、订阅 URL、Bearer secret 和 `state.enc.json` 不得公开。
 
-记录用户测试输出时对 IP、订阅、节点和秘密做脱敏；不得要求用户公开节点密码/URL。
+### P1 — 后续补齐 Agent 白名单负向行为测试
 
+- 已发布代码继续只接受 `127.0.0.1:<合法端口>`、64 位 hex secret 和恰好 `external_controller` / `secret` 两字段；根级 `endpoints` 仍禁止。
+- 当前 Windows Release 编译 Agent 并验证了生成配置矩阵，但仓库没有独立的 .NET 行为级测试来实际执行全部恶意配置形态（LAN / wildcard / IPv6、非法端口、重复/额外字段等）。这项仍为 **NOT RUN**；后续应先设计可靠、可自动化的 Agent 验证方式，再按项目版本纪律实现。
 
 ### 已交付 — 0.3.13：批量节点检测与测速（Release 已发布；用户实机验收待办）
 
@@ -313,7 +317,7 @@ GitHub 最新状态每次都应现查：
 下一步：安装 0.3.14 后，批量重新检测原目标 65.49.237.84，对照 PowerShell 原生平均 43ms；然后抽查其他节点，确认可达节点正常显示 RTT、真正无 ICMP 回包仍显示超时。
 
 
-## 0.3.15 实现进行中：实时流量统计 + 节点累计 + UI 可读性
+## 0.3.15 功能实现记录（历史阶段；已由 0.3.16 正式发布覆盖）
 
 设计文档：`docs/LIVE-TRAFFIC-AND-UI-READABILITY.md`；先行设计提交：`f592fc721d2b097f35fc44eb5ef5aea8ecfa6cf6`。功能代码已进入 main，正式验证/发布尚未完成。
 
@@ -332,12 +336,12 @@ GitHub 最新状态每次都应现查：
 - 采样每秒一次；节点累计最多 10 秒批量写入加密状态，并在断开/退出 flush。
 - 不升级 sing-box、不修改 Windows 系统代理、不改变 TUN Agent fail-closed 清理逻辑。
 
-### 尚未完成
-- Node 自动化 / package-lock、固定 sing-box 1.14.4 的 58 组配置检查、Windows Agent、TypeScript/Vite、NSIS / SHA、GitHub Actions 当前 HEAD 状态核验。
-- Windows 10/11 实机代理上/下行、断开 final/reconnect reset、跨重启节点累计、TUN 含直连统计、API 失败、字号布局与节点删除验收。
-- 只有对应 CI 和 Release 资产全部实际通过后才能把 0.3.15 标记已发布；CI 不等于用户实机验收。
+### 历史阶段待办（已由后续 v0.3.16 发布证据覆盖）
 
-下一步：先完成本次代码检查和 Actions 结果；遇到失败先修复，再更新版本说明与交接。
+- 本节保留的是 0.3.15 开发阶段的待办快照，不代表当前 CI / Release 仍未完成。
+- 自动化、固定 sing-box 配置矩阵、Agent、TypeScript/Vite、NSIS 与安装包 SHA 已在 v0.3.16 正式发布流程中通过；证据见上方当前验证摘要与 `docs/RELEASE-0.3.16.md`。
+- 仍未完成的是用户 Windows 10/11 实机验收，包括本地代理和系统 TUN 的双向统计、断开/重连、持久化、direct 流量归属及 UI 布局；不得把 CI 当作实机结果。
+- 下一步以本文件当前 P0 验收队列为准，不再重复执行 0.3.15 的旧发布步骤。
 
 ## 0.3.16 TUN Clash API 白名单修复（已发布）
 

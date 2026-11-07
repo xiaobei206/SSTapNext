@@ -1,6 +1,6 @@
 > **当前规则优先说明（2026-11-07）：** 本文件是按时间追加的历史日志，旧章节中的分支/PR/发布状态只描述当时情况，不代表现在。新对话请先阅读根目录 **START HERE NEXT GPT.md**。当前唯一开发线为 main；日常不建 feature 分支、不建 PR；**每次开发必须先更新文档再改代码**。最新状态以本文件最末尾的最新日期条目、START HERE NEXT GPT.md 和 GitHub 实时状态为准。早期“main 仍为 0.3.11”“0.3.12 尚在 feature 分支”“Release 待发布”等历史文字均已被后续记录覆盖。
 
-## 当前状态（更新至 2026-11-06）
+## 历史状态快照（截至 2026-11-06；已由文末最新条目覆盖）
 
 - 当前源码基线：0.3.7。
 - 最近用户确认真实功能可用的版本：0.3.5（用户明确反馈 TUN YouTube 访问正常）；0.3.6 的 Windows 完整构建结果未在对话中确认。
@@ -519,3 +519,34 @@
 - Windows Release workflow run 42365153123 / job 128381544820：success；sing-box 58/58、.NET 10 Agent、TypeScript/Vite、NSIS、installer SHA、Release 上传和 artifact 全成功。
 - EXE 174,898,679 bytes，SHA-256 `68c7094f74ef50c85ca96e9e07110be9397703fbaa915233a4634e5d8292261d`；blockmap 182,455 bytes，SHA-256 `93322a3e2a23b9c9e37f2bcc3a73cfb25050399d81149d2b702c02b6bebf8b36`；sidecar 93 bytes，asset digest `2c93e466bc6c92851ff55766de328c272c303aaf009e0f56bb92de18ff6caf40`。
 - 用户 Windows 实机安装 0.3.16 后的系统 TUN 启动、实时流量统计和断开清理仍 NOT RUN，待用户确认。
+
+
+## 2026-11-07 — v0.3.16 发布收尾与文档状态统一
+
+### 收尾起点与已确认版本
+
+- 本轮开始时 main HEAD：`f3e27bfba1a3480317fa7555c9296dd38fc5d2fa`（`docs: record verified 0.3.16 release and TUN fix`）。
+- 正式 Release：v0.3.16，target commit `6245eab7e953ff13c0f765691a8ad1692e15f14e`；package.json、package-lock.json 与 Agent 版本均为 0.3.16。
+- Release Node CI run [42365153162](https://github.com/xiaobei206/SSTapNext/actions/runs/42365153162)：107/107 PASS、0 fail；package-lock 704/704 PASS。
+- Release Windows workflow run [42365153123](https://github.com/xiaobei206/SSTapNext/actions/runs/42365153123)，job `128381544820`：sing-box 58/58、.NET 10 Agent、TS/Vite、NSIS、installer SHA、Release 发布和 artifact 上传全部成功。Release API 已确认 EXE、blockmap、SHA-256 sidecar 实际存在，哈希与大小见 `docs/RELEASE-0.3.16.md`。
+- 收尾起点 HEAD 的文档 CI run [42365557674](https://github.com/xiaobei206/SSTapNext/actions/runs/42365557674)：107/107 PASS、lock 704/704 PASS。对应 Windows run [42365557673](https://github.com/xiaobei206/SSTapNext/actions/runs/42365557673) 显示 success，但由于 v0.3.16 Release 已存在，Build/installer verification/publish/upload 步骤被 skip；不可声称该 run 重新构建安装包。
+
+### 本轮文档收尾范围
+
+- 同步 `START HERE NEXT GPT.md` 的当前 CI/Release 证据，将旧的 0.3.12 实机任务替换为 v0.3.16 的当前验收队列，并标明 0.3.15 阶段待办已被后续正式发布覆盖。
+- 修复 `HANDOVER.md` 中仍声称当前版本是 0.3.12、当前 release 是 0.3.15 的矛盾摘要；旧 0.3.13/0.3.14 内容保留为历史记录。
+- 修正 `PROJECT-OVERVIEW-CN.md` 的最新 Release 状态。
+- 更新 `docs/TEST-PLAN.md` 中已核验 Release 资产的状态，明确 Agent 非法配置拒绝分支仍缺独立行为级负向测试。
+- 将 `docs/WINDOWS-ACCEPTANCE.md` 切换为 v0.3.16 累计功能的实际验收清单，并同步 `docs/LIVE-TRAFFIC-AND-UI-READABILITY.md` 的当前发布状态。
+- 明确 `docs/RELEASE-0.3.16.md` 的资产/验证证据与仍未执行的真实 Windows 验收边界。
+
+### 未修改与未宣称事项
+
+- 本轮仅收尾文档；没有修改运行时代码、测试代码、依赖、版本号或已发布的 v0.3.16 二进制资产。
+- 本轮未在本地 Windows 机器执行构建/网络测试。正式版本的自动化/完整 Windows 构建证据来自上述 Release target Actions。
+- **仍 NOT RUN：** 用户 Windows 10/11 实机的规则库更新/回滚、批测隔离、系统 TUN 启动、不同分流模式的公网出口/DNS/UDP/QUIC、上下行流量归属、final flush/重连计数和至少 10 轮 TUN 清理。
+- **仍 NOT RUN：** 对 Agent 非法 Clash API 配置（wildcard/LAN/IPv6、非法端口、重复/额外字段等）的独立行为级负向测试。源码当前具备相关拒绝逻辑，但没有独立 .NET 测试 harness 实际执行这些输入。
+
+### 下一步唯一动作
+
+用户在 Windows 10/11 安装正式 v0.3.16，按 `docs/WINDOWS-ACCEPTANCE.md` 先跑本地代理与无路由 TUN smoke test，确认无风险后再执行真实 TUN；逐项回填结果。若发现可复现缺陷，先更新设计/验收文档，再做最小代码修复并递增版本号。
