@@ -218,11 +218,11 @@ test('retires an old cleanup_error only after two complete inspectors confirm th
   t.after(async () => { fake.clear(); await fs.rm(root, { recursive: true, force: true }); });
 
   const staleId = 'f'.repeat(32);
-  const staleDirectory = path.join(root, 'runtime', \`tun-\${staleId}\`);
+  const staleDirectory = path.join(root, 'runtime', `tun-${staleId}`);
   await fs.mkdir(staleDirectory, { recursive: true });
   const oldError = [
     'sing-box PID 24372 已退出，但 TUN 接口 SSTap Next 在 18 秒后仍被检测为本次会话残留。',
-    \`适配器详情：Name=SSTap Next; Description=sing-tun Tunnel #3; Id=\${adapterId}; Status=Down; Type=53; Addresses=[]\`,
+    `适配器详情：Name=SSTap Next; Description=sing-tun Tunnel #3; Id=${adapterId}; Status=Down; Type=53; Addresses=[]`,
   ].join('\n');
   await fs.writeFile(path.join(staleDirectory, 'session.json'), JSON.stringify({ sessionId: staleId, interfaceName: 'SSTap Next' }));
   await fs.writeFile(path.join(staleDirectory, 'status.json'), JSON.stringify({
@@ -252,11 +252,11 @@ test('does not accept adapter absence when the historical PID is still sing-box 
   ]) {
     const { root, fake, controller } = await makeController({ inspectAdapter: async () => inspection });
     const staleId = '9'.repeat(32);
-    const staleDirectory = path.join(root, 'runtime', \`tun-\${staleId}\`);
+    const staleDirectory = path.join(root, 'runtime', `tun-${staleId}`);
     await fs.mkdir(staleDirectory, { recursive: true });
     const oldError = [
       'sing-box PID 24372 已退出，但 TUN 接口 SSTap Next 在 18 秒后仍被检测为本次会话残留。',
-      \`适配器详情：Name=SSTap Next; Description=sing-tun Tunnel #3; Id=\${adapterId}; Status=Down; Type=53; Addresses=[]\`,
+      `适配器详情：Name=SSTap Next; Description=sing-tun Tunnel #3; Id=${adapterId}; Status=Down; Type=53; Addresses=[]`,
     ].join('\n');
     await fs.writeFile(path.join(staleDirectory, 'session.json'), JSON.stringify({ sessionId: staleId, interfaceName: 'SSTap Next' }));
     await fs.writeFile(path.join(staleDirectory, 'status.json'), JSON.stringify({
