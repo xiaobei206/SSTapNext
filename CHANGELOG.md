@@ -1,3 +1,13 @@
+## 0.3.10 — TUN 遗留状态双重核验与真实缺失恢复
+
+- 修复 0.3.9 对历史 Wintun GUID 的严格查找在接口已被 Windows 移除时仍永久保留旧清理锁的问题。
+- PowerShell 与 .NET Agent 分别枚举网络接口；只有两边均完整确认历史 GUID 和所有 SSTap/sing-tun 相关接口均不存在，且历史 sing-box PID 不再运行，才按“接口已不存在”安全归档旧错误状态。
+- 若发现同名/同驱动接口、活动 sing-box 进程、重复 GUID、地址仍在或任一枚举/进程检查失败，仍保持 fail-closed，禁止启动 TUN。
+- 补充 UTF-8 PowerShell 输出、matchCount、相关接口候选和 PID 检查诊断，避免错误信息乱码及“找不到”原因被吞掉。
+- 不删除网卡、Wintun 驱动、路由、DNS 或原始日志；旧 status.json 归档为 status.cleanup_error-legacy.json。
+
+验证边界：Node 回归测试与 GitHub Actions Windows 编译/打包用于验证代码；真实 Windows 网卡结果仍以用户机器运行时的只读枚举为准。
+
 ## 0.3.7 — Wintun 持久化 Down 接口清理误报修复
 
 - 修复 sing-box 正常退出后，Windows 仍保留 `sing-tun Tunnel` 网卡对象（`Status=Down`、没有 `172.19.0.1` 地址）却被误判为本次会话清理残留的问题。
