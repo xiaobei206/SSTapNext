@@ -111,7 +111,7 @@
 8. 任务必须可取消、进度可观察；取消后等待并确认本任务启动的子进程退出，再释放对应资源。
 9. 默认并发不能造成无控制的 32 个完整核心持续运行；必须测试 8/16/32 并发的 CPU、内存、连接数、错误率和取消清理表现，必要时使用一个多 outbound/multiple inbound 的专用测试核心或有界 worker 核心池。
 
-## 8. 技术实现路线（设计约束）
+## 8. 技术实现路线（本轮已选定）
 
 - 新增独立模块，例如 src/shared/batch-node-test.cjs，将 PING、TCPING、临时 sing-box/SOCKS 测试和调度统一编排；不要将并发逻辑塞进 Renderer。
 - 单节点临时测试配置由现有 buildProxyConfig() 复用其节点 outbound 生成逻辑，但 set_system_proxy: false 和 loopback-only 必须有自动化断言。
@@ -129,7 +129,7 @@
 - ICMP 成功/丢包/全部超时/域名解析失败/IPv4 与 IPv6 场景。
 - TCPING 成功/ECONNREFUSED/ETIMEDOUT/ENOTFOUND，Hysteria2 显示 N/A。
 - 单节点和多节点任务、选中节点、全部节点、0 节点、重复 nodeId、已删除 nodeId。
-- 并发上限 1/2/4/8/16/32；节点数量小于并发上限；确保全局活动 worker 不超限。
+- 批量并发节点数 1/2/4/8/16/32；单节点 Range 线程数 1/2/4/8/16/32；全局活动 Range worker 不超过 64。
 - 单个节点失败不影响其他节点继续；进度和结果按 nodeId 正确回填。
 - 取消任务：取消后无遗留子进程、无临时配置、无端口监听；其他用户连接继续运行。
 - 临时核心启动失败、配置检查失败、SOCKS 未就绪、下载中断、备用测速源切换。

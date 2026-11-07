@@ -216,8 +216,9 @@ GitHub 最新状态每次都应现查：
 - 当前单节点测速的启动慢要优化；测速不得切换或修改 Windows 系统代理，也不得中断用户正在使用的节点。
 
 **设计和当前实现分析已写入 docs/CONCURRENT-NODE-TESTING.md。新对话必须先读该文档。**
-现有 speedTestThreads 是单节点 HTTP Range 分段 worker 数（目前 1/2/4/8），不要与“同时测速节点数”混为一个设置。当前测速调用主 CoreController.connect()，生成临时单节点 sing-box 配置、sing-box check、启动进程、等待本地 SOCKS5 就绪，下载后断开；sing-box mixed inbound 已明确 set_system_proxy=false，只监听 127.0.0.1。当前不是设置 Windows 系统代理，但启动临时核心确实增加了前置耗时。
-下一步：按设计文档实现独立 batch-node-test runner / worker pool，优先实现 ICMP + TCPING、节点列表结果列，再接入真实代理延迟与 10 MB 下载测速；保持 loopback-only、set_system_proxy=false、主连接隔离、TUN 安全锁、取消清理。正式代码迭代升至 0.3.13，并同步所有版本字段和 release notes。**本项当前只有设计文档，没有代码实现，也没有 0.3.13 Release。**
+现有 speedTestThreads 是单节点 HTTP Range 分段 worker 数，扩展至 1/2/4/8/16/32；另增 batchTestConcurrency（同时检测节点数，默认 4，也允许 1/2/4/8/16/32）。全局 Range worker 预算上限 64，防止两项设置相乘后过载。当前单节点测速调用主 CoreController.connect()，生成临时单节点 sing-box 配置、check、启动进程、等待本地 SOCKS5 就绪，下载后断开；mixed inbound 已明确 set_system_proxy=false，只监听 127.0.0.1。
+实现采用每批一个临时 sing-box 进程、多个 loopback inbound/outbound、inbound route 绑定 outbound；新 runner 不调用主 CoreController。PING 由 Windows ping.exe、TCPING 由 TCP socket；Hysteria2 TCPING=N/A。逐节点持久化结果。
+**当前只有设计文档，尚未写运行时代码，尚未升级 0.3.13，尚未发布。**
 
 ### P2 — 根据实测结果修复
 

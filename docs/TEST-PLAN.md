@@ -12,7 +12,7 @@
 - 上述 CI/构建证据不等于用户 Windows 10/11 实机验收；真实规则库行为、节点出口、DNS、UDP/QUIC、TUN/Wintun 仍按 WINDOWS-ACCEPTANCE.md 逐项记录。
 
 
-## 下一版 0.3.13：批量节点检测与测速（设计阶段，尚未实现）
+## 下一版 0.3.13：批量节点检测与测速（实施前已冻结设计）
 
 完整设计与当前基线见 [CONCURRENT-NODE-TESTING.md](CONCURRENT-NODE-TESTING.md)。
 
@@ -26,7 +26,7 @@
 
 Windows 实机必须进一步测试 1/2/4/8/16/32 并发的 CPU/内存/带宽、系统代理不变、用户活动连接不受影响、取消后的完整清理。500 Mbps 出口下同时下载会共享带宽，不能把并发速度直接与单节点串行峰值比较。
 
-当前 0.3.12 的 speedTestThreads 只是单节点下载 Range worker 数（1/2/4/8），不能当作并发节点数量。0.3.13 必须用独立、明确的并发节点数参数。此处仅为验收要求登记，未代表代码实现。
+当前 0.3.12 的 speedTestThreads 只是单节点下载 Range worker 数；0.3.13 将其扩展为 1/2/4/8/16/32，并另增 batchTestConcurrency（默认 4，同样支持 1/2/4/8/16/32）。单批最多 32 个节点；每批一个 sing-box 临时进程；每节点 loopback inbound 独立绑定自身 outbound。现阶段为实施设计定稿，未代表代码实现。
 
 ## SSTap .rules 转换与规则库
 

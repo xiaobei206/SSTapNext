@@ -120,3 +120,14 @@ The Windows build script runs Node tests, 54 protocol/mode/DNS sing-box combinat
 - 用户 10 MB 文件可按设置使用；16/32 并发会共享 500 Mbps 出口，需要在结果中明确这是并发带宽分摊值。
 
 正式实现升为 0.3.13；先更新专题设计和本文件/START HERE，再写代码。当前尚未修改任何运行时测速代码。
+
+
+## 0.3.13 实施路线补充（2026-11-07）
+
+- 批量测速运行时采用每批一个临时 sing-box 进程，不是每个节点一个进程。每个节点拥有唯一 loopback inbound + outbound tag，由 route rule 按 inbound tag 锁定 outbound；每个 inbound set_system_proxy:false。
+- 单批最多 32 节点；大于 32 的节点分批运行。批测节点并发 batchTestConcurrency 默认 4，可选 1/2/4/8/16/32。
+- 单节点 Range 分段 speedTestThreads 扩展 1/2/4/8/16/32。全局 Range worker budget=64，实际每节点 Range worker 数按并发节点数动态上限；不能 32x32。
+- 独立 runner 实施路径 src/shared/batch-node-test.cjs；PING=ping.exe 3 次；TCPING=TCP socket connect；Hysteria2 N/A。
+- 结果持久化为 nodeTestResults，按 nodeId 更新，节点删除/订阅替换时必须防止孤儿记录。
+- Windows 核心配置校验新增多节点批测配置，sing-box 检查从 55 增至 56。
+- 正式代码版本为 0.3.13；本补充只是实现前设计定稿，尚未改运行时代码。

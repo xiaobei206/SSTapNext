@@ -324,3 +324,14 @@
 - 实施前重新读 START HERE NEXT GPT.md 与 docs/CONCURRENT-NODE-TESTING.md。
 - 正式代码迭代版本升至 0.3.13，先同步所有版本字段、发布说明，再逐步实现 runner、IPC、Renderer 节点列表和测试。
 - 在 Windows runner 与用户机器上实测 1/2/4/8/16/32 并发资源、系统代理保持不变、活动连接隔离与取消清理。
+
+
+### 0.3.13 实施设计定稿（2026-11-07，代码修改前）
+
+- 批量测速明确采用每批一个临时 sing-box 进程，多个 loopback mixed inbound + 多个 node outbound，使用 inbound route 将各端口流量锁定到对应节点 outbound。所有 inbound set_system_proxy:false。
+- 批量节点并发 batchTestConcurrency 默认 4，选项 1/2/4/8/16/32；每批最多 32 个节点，更多节点分批。
+- 每节点下载 Range 线程 speedTestThreads 扩展 1/2/4/8/16/32。全局 Range worker 总预算 64，根据批测并发数计算有效线程，防止乘法放大。
+- PING 走 Windows ping.exe 3 次；TCPING 走 Node TCP connect；真实代理延迟/10 MB 下载复用 SOCKS 测速模块。Hysteria2 的 TCPING 为 N/A。
+- 结果按 nodeId 存入受限 nodeTestResults；支持全量/勾选节点、逐节点事件回填和取消。独立 runner 不操作主 CoreController；TUN 不安全状态下拒绝批测。
+- 批量 sing-box 配置加入 Build-Windows 的真实核心校验，将配置矩阵从 55 增至 56。
+- 本条记录在代码开发前提交；尚未修改运行时代码和版本号。
