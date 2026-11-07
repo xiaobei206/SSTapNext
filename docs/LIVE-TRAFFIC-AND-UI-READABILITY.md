@@ -1,6 +1,6 @@
 # 实时流量统计与 UI 可读性（0.3.15）
 
-状态：**设计已定，待实现**。当前正式版本 0.3.14；本轮目标版本 0.3.15。
+状态：**代码已推送 main，待自动化/Windows 验证**。当前公开 Release 仍为 0.3.14；本轮 main/package 目标版本为 0.3.15（尚未发布）。
 
 ## 1. 用户目标
 
@@ -17,7 +17,7 @@
 
 - 当前运行核心固定为 sing-box 1.14.4，不升级核心、不增加 npm 依赖。
 - 使用当前核心内置 Clash API 的 `GET /connections` 快照。v1.14.4 源码 `experimental/clashapi/connections.go` 的响应字段为 `uploadTotal`、`downloadTotal`、`connections`；累计值由 traffic manager 提供，包含活动及已关闭连接的统计。
-- `experimental.clash_api.external_controller` 仅监听 `127.0.0.1:<随机端口>`；每次会话生成随机 Bearer secret。secret 与 API 地址仅留在 Electron main/shared controller 的内存中，绝不通过 IPC、Renderer、日志或持久化状态暴露。
+- `experimental.clash_api.external_controller` 仅监听 `127.0.0.1:<随机端口>`；每次会话生成随机 Bearer secret。secret 与 API 地址在 Electron main/shared controller 内存中持有；配置文件是 sing-box 必需输入，因此端点与 secret 会短暂写入权限受限的运行配置文件（TUN 会话目录 mode 0700、config 文件 mode 0600），会话清理时删除。它们绝不写入加密状态、IPC、Renderer 或日志。
 - main/shared 每秒轮询一次快照，用累计计数差计算瞬时速率；速率对最近 3 个有效样本做平滑，累计始终使用核心返回的原始单调计数。无效响应、重连和计数回退不得生成负流量；API 短时不可达时 UI 显示“统计暂不可用”，不能把缺失当成 0。
 - 会话成功启动后建立独立 sessionId 和零起点；断开/核心意外退出前最后读取一次快照，再停止采样，发出 final 事件。下一次连接绝不继承上一次会话数值。
 
@@ -46,11 +46,11 @@
 
 ## 3. 影响文件
 
-预期新增：
+已新增：
 - `src/shared/singbox-traffic.cjs`：Clash API 端口/随机密钥配置、快照采样、速率平滑、会话 final 事件。
 - `src/shared/singbox-traffic.test.mjs`：统计快照解析、上传/下载方向、首个样本、累计差、速率、计数回退、API 超时、停止与 final 事件等测试。
 
-预期修改：
+已修改：
 - `src/shared/singbox-config.cjs`、`src/shared/tun-config.cjs`：可选且经过校验的 Clash API 配置，仅当 controller 显式传入时启用。
 - `src/shared/core-controller.cjs`、`src/shared/tun-controller.cjs`：为各会话启动/停止统计器并在生命周期中安全回收。
 - `apps/desktop/src/main/index.cjs`：统计事件、节点累计统计加总、加密持久化批处理、断开/退出 flush。
@@ -71,6 +71,8 @@
 - 字号巡检必须扫描 CSS 字号声明、浏览器默认小字号、Renderer inline style 和页面中实际使用的 small 文本；普通可读文本不低于 14px。
 
 ## 5. 验收与测试
+
+当前实现已推送 main。自动化与 Windows 实机尚未在本条目中宣称通过；实际结果以 `docs/RELEASE-0.3.15.md` 和 `START HERE NEXT GPT.md` 的最新证据为准。
 
 ### 自动化
 - 快照解析：识别 v1.14.4 的 `uploadTotal`、`downloadTotal`；分别验证方向，不交叉、不反号。
