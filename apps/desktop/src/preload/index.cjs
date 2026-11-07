@@ -32,6 +32,7 @@ contextBridge.exposeInMainWorld('sstap', Object.freeze({
   cancelBatchNodeTest: () => ipcRenderer.invoke('sstap:batch-test-cancel'),
   onCoreEvent: (listener) => subscribe('sstap:core-event', listener),
   onTunEvent: (listener) => subscribe('sstap:tun-event', listener),
+  onTrafficEvent: (listener) => subscribe('sstap:traffic-event', listener),
   onSpeedProgress: (listener) => subscribe('sstap:speed-progress', listener),
   onBatchTestProgress: (listener) => subscribe('sstap:batch-test-progress', listener),
 }));
