@@ -93,6 +93,27 @@ test('starts a TUN Agent session, writes a routed config, and stops cleanly on a
   assert.equal(controller.getStatus().status, 'stopped');
 });
 
+test('locks SSTap rule-library mutation during TUN startup and while a session is active', async (t) => {
+  const { root, fake, controller } = await makeController();
+  t.after(async () => { fake.clear(); await fs.rm(root, { recursive: true, force: true }); });
+  assert.equal(controller.isRuleLibraryMutationLocked(), false);
+
+  const starting = controller.connect(node, { mode: 'global' });
+  assert.equal(controller.isRuleLibraryMutationLocked(), true, 'the in-flight start promise must lock rule file rotation immediately');
+  await starting;
+  assert.equal(controller.isRuleLibraryMutationLocked(), true, 'an active TUN session must keep rule mutation locked');
+
+  await controller.disconnect();
+  assert.equal(controller.isRuleLibraryMutationLocked(), false, 'a confirmed clean stop releases the lock');
+});
+
+test('keeps SSTap rule-library mutation locked when TUN cleanup is unresolved', async (t) => {
+  const { root, fake, controller } = await makeController();
+  t.after(async () => { fake.clear(); await fs.rm(root, { recursive: true, force: true }); });
+  controller._publish({ status: 'cleanup_error', connected: false, lastError: 'unresolved adapter ownership' });
+  assert.equal(controller.isRuleLibraryMutationLocked(), true, 'cleanup_error is a fail-closed lock even without a current session object');
+});
+
 test('refuses to start a second TUN session while one is already running', async (t) => {
   const { root, fake, controller } = await makeController();
   t.after(async () => { fake.clear(); await fs.rm(root, { recursive: true, force: true }); });
