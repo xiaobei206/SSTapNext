@@ -1,3 +1,15 @@
+## 0.3.15 设计阶段：实时流量 / 节点累计 / UI 字号
+
+- 目标版本：0.3.15；当前正式版本仍为 0.3.14。
+- 设计文档：`docs/LIVE-TRAFFIC-AND-UI-READABILITY.md`。
+- 用户明确要求首页本次上传/下载累计分开、上传/下载实时速度；节点页分开累计上传/下载/合计；指标表头点击升降序；左下角版本淡化、字号与周围一致；巡检全 UI 字号。
+- 技术方案：使用 sing-box 1.14.4 Clash API `/connections` 的 `uploadTotal` / `downloadTotal`；API 只绑定随机 `127.0.0.1` 端口并使用随机 Bearer secret，凭据留在主进程内存。
+- 归属原则：本地代理会话 final=selected-proxy，可按 nodeId 累加历史流量；TUN 会话总量可能包括 direct 流量，只显示在首页并明确“含直连”，不错误累加到节点统计。
+- 每秒采样更新 UI；加密状态统计每 10 秒批量 flush，并在断开/退出时 final flush。不要每秒写磁盘。
+- 排序缺失值固定置底，排序不更改节点选中、活动和勾选状态。
+- 设计已先提交（docs commit `f592fc721d2b097f35fc44eb5ef5aea8ecfa6cf6`）；本节更新属于文档阶段，运行时代码仍 NOT STARTED。
+- **下一步：** 更新主进程、core/TUN controller 与 renderer 相关设计/测试文档后，才开始代码改动。
+
 # SSTap Next — 当前交接摘要（2026-11-07）
 
 > 本节优先级高于下方历史记录。当前正式版本 v0.3.14 已发布。
