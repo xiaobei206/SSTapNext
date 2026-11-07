@@ -335,3 +335,40 @@
 - 结果按 nodeId 存入受限 nodeTestResults；支持全量/勾选节点、逐节点事件回填和取消。独立 runner 不操作主 CoreController；TUN 不安全状态下拒绝批测。
 - 批量 sing-box 配置加入 Build-Windows 的真实核心校验，将配置矩阵从 55 增至 56。
 - 本条记录在代码开发前提交；尚未修改运行时代码和版本号。
+
+
+
+## 2026-11-07 — 0.3.13 批量节点检测与测速代码实现阶段（续）
+
+### 已实现内容
+
+- 独立 runner：新增 src/shared/batch-node-test.cjs，不使用主 CoreController 来回切节点。
+- 批测 sing-box：每批最多 32 节点，仅启动一个临时 sing-box 进程；每节点独立 loopback mixed inbound 和 outbound，通过 inbound route 精确绑定；未匹配路由 final=block；所有 inbound set_system_proxy=false。
+- 指标：Windows ping.exe 三次 ICMP PING（英语/中文输出解析）、原始 TCP socket TCPING 三次、经节点自身 SOCKS inbound 的 HTTP 真实代理延迟和 Range 下载；Hysteria2 的 TCPING 显示 N/A。
+- 参数：batchTestConcurrency=1/2/4/8/16/32（默认 4）；speedTestThreads=1/2/4/8/16/32；Range worker 总预算固定 64，按本批有效并发节点数向下选支持档位，覆盖 3、5 等非 2 的幂次节点数量。
+- IPC：增加 start/cancel/progress，校验 renderer 来源、节点 ID、并发档位、节点数量和 TUN 安全状态；应用退出时取消并等待批测清理。
+- 结果：按 nodeId 保存到加密状态 nodeTestResults，上限 512；每节点实时回填，删除节点后持久化时清理孤儿结果。
+- UI：节点管理支持全部/选中、全选、并发和 Range 线程设置、保存参数、取消、进度；列表直接显示 PING/TCPING/代理延迟/下载/最近检测时间。
+- 新增 src/shared/batch-node-test.test.mjs 覆盖本地化 PING、PING 取消等待 close、TCPING、Range budget、批量路由、worker pool、单节点失败隔离、单批单进程集成和取消清理。
+- scripts/validate-singbox-configs.mjs 增加两节点批测配置的真实 sing-box check；目标从 55 项增至 56 项。
+
+### 发现并修复的实现回归
+
+- 首轮 worker 完成计数测试发现统计数据不正确；修复任务结果计数与 active 进度。
+- 取消测试暴露 worker pool Promise.all 提前拒绝的问题；改为 Promise.allSettled 等待所有任务 settle 后再清理进程。
+- 修复 _startSession 在 spawn 后发生取消时过早 throw、导致 session ownership 未交给 finally 清理的竞态。
+- Windows 全局字号契约发现来源标识 13px；已提升到 14px。
+- 补上中文 Windows ping.exe “时间=...ms”解析和 ICMP 子进程等待 close。
+- 修正有效 Range worker budget 对 3、5 等非 2 的幂次并发节点数的处理，向下取可支持的线程档位。
+
+### 当前验证/发布状态
+
+- 本节写入时仍需以最新 main SHA 对应 GitHub Actions 为准；此前有失败和取消的旧 runs，不可拿旧 SHA 成功代替。
+- 0.3.12 是最新正式 Release；0.3.13 版本号与 Release notes/资产尚待最后一轮版本统一和构建验证。
+- 用户 Windows 10/11 实机的 1/2/4/8/16/32 并发 CPU/内存/共享带宽、系统代理状态、现有连接隔离、取消清理尚未运行（NOT RUN）。CI 成功也不等于实机已验收。
+
+### 下一步唯一动作
+
+1. 先核验当前 main HEAD 的 Node CI 具体失败/通过测试数，以及 Windows workflow 的 56 项 sing-box check、Agent、TypeScript/Vite、NSIS、SHA 步骤。
+2. Node CI 通过后，将 package.json/package-lock、Agent、Build script/doctor、README/CHANGELOG 和 docs/RELEASE-0.3.13.md 一次性同步正式版本号 0.3.13。
+3. 验证 v0.3.13 Release 与 EXE、blockmap、SHA-256 三个资产；如 workflow 失败，先修复并递增修订版本，不能手工宣称发布成功。
