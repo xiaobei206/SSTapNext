@@ -38,8 +38,8 @@
 
 /* 0.3.8: readable app version in the lower-left sidebar. */
 .sidebar-build{display:flex;align-items:center;color:#9eacc0;font-size:14px;font-weight:600;letter-spacing:.15px}
-.sidebar-version{margin:9px 0 0 15px;color:#8196b2;font-size:15px;font-weight:550;letter-spacing:.2px}
-.sidebar-version strong{margin-left:4px;color:#b9d7fb;font-size:16px;font-weight:750}
+.sidebar-version{margin:8px 0 0 15px;color:#64748a;font-size:14px;font-weight:400;letter-spacing:normal}
+.sidebar-version strong{margin-left:4px;color:inherit;font-size:inherit;font-weight:inherit}
 
 
 /* 0.3.9: keep the sidebar footer visible regardless of page content height. */
@@ -80,7 +80,7 @@
 .batch-progress-top b{color:#dcecff}
 .batch-progress-card small{font-size:14px;color:#8da8c8}
 .batch-node-list{overflow-x:auto;min-width:0}
-.batch-node-head,.batch-node-row{display:grid;grid-template-columns:24px 34px minmax(170px,1.7fr) minmax(92px,.72fr) minmax(92px,.72fr) minmax(104px,.8fr) minmax(112px,.9fr) minmax(100px,.85fr) minmax(75px,.6fr) 28px;align-items:center;gap:9px;min-width:1040px}
+.batch-node-head,.batch-node-row{display:grid;grid-template-columns:24px 34px minmax(170px,1.65fr) minmax(80px,.58fr) minmax(80px,.58fr) minmax(100px,.72fr) minmax(100px,.75fr) minmax(105px,.78fr) minmax(105px,.78fr) minmax(105px,.78fr) minmax(145px,1fr) minmax(75px,.55fr) 28px;align-items:center;gap:9px;min-width:1450px}
 .batch-node-head{padding:8px 10px;border-bottom:1px solid #2b3d55;color:#7f95b3;font-size:14px}
 .batch-node-row{padding:11px 10px;border-top:1px solid #202e40;cursor:pointer}
 .batch-node-row.selected{padding-left:10px;padding-right:10px}
@@ -94,3 +94,36 @@
 .batch-node-row .node-source{font-size:14px;display:none}
 .batch-node-row .icon-button{justify-self:center}
 @media(max-width:1120px){.batch-actions{margin-left:0}.batch-node-list{padding-bottom:4px}}
+
+
+/* 0.3.15 live traffic + readable small text */
+small{font-size:14px}
+.traffic-card{grid-column:1/-1;background:#111a28;border:1px solid #263a54;border-radius:13px;padding:18px 20px}
+.traffic-card-heading{display:flex;align-items:center;justify-content:space-between;gap:14px}
+.traffic-live-state{display:inline-flex;align-items:center;gap:7px;color:#71839d;font-size:14px;white-space:nowrap}
+.traffic-live-state i{width:7px;height:7px;border-radius:50%;background:#64748a;display:inline-block}
+.traffic-live-state.live{color:#8ed4b6}
+.traffic-live-state.live i{background:#55c79a;box-shadow:0 0 8px #55c79a55}
+.traffic-live-state.unavailable{color:#dbb67b}
+.traffic-live-state.unavailable i{background:#d7a35e}
+.traffic-rate-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:13px;margin-top:15px}
+.traffic-value-card{min-width:0;padding:15px 17px;border:1px solid #26384e;border-radius:10px;background:#0d1724}
+.traffic-value-label{display:flex;align-items:center;gap:8px;color:#91a5bf;font-size:14px}
+.traffic-value-card>b{display:block;margin-top:8px;color:#e5effc;font-size:24px;font-weight:720;letter-spacing:-.35px;overflow-wrap:anywhere}
+.traffic-arrow{display:inline-grid;place-items:center;width:20px;height:20px;border-radius:6px;font-style:normal;font-size:15px;font-weight:700}
+.traffic-arrow.download{background:#163858;color:#83c2ff}
+.traffic-arrow.upload{background:#183a33;color:#8dd6b8}
+.traffic-total-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:13px;margin-top:12px}
+.traffic-total-grid>div{display:grid;gap:5px;min-width:0}
+.traffic-total-grid span{color:#71849e;font-size:14px}
+.traffic-total-grid b{color:#c7d6e9;font-size:16px;font-weight:650;overflow-wrap:anywhere}
+.traffic-card-foot{margin-top:13px;padding-top:11px;border-top:1px solid #202e40;color:#71849d;font-size:14px;line-height:1.55}
+.node-sort-button{display:flex;align-items:center;justify-content:space-between;gap:6px;width:100%;padding:2px 0;border:0;background:transparent;color:#7f95b3;font:inherit;font-size:14px;text-align:left;cursor:pointer}
+.node-sort-button:hover,.node-sort-button.active{color:#c1d9f5}
+.node-sort-button span{color:#607b9e;font-size:14px;font-weight:700}
+.node-sort-button.active span{color:#8fc3ff}
+@media(max-width:760px){
+  .traffic-rate-grid{grid-template-columns:1fr}
+  .traffic-total-grid{grid-template-columns:1fr 1fr}
+  .traffic-card{padding:15px}
+}
