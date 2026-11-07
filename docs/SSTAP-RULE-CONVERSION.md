@@ -54,9 +54,10 @@ A concrete analysis of the upstream examples found:
 
 - The selected SSTap local source rule sets are injected into the sing-box `route.rule_set` list.
 - `0` maps to `selected-proxy`; `1` maps to `direct`.
-- Game/user-selected rule routes are inserted before the broad China GeoSite/GeoIP routes, so a selected game-specific proxy rule can override a general China-direct match.
 - Private/local IP direct remains a safety rule before imported rules.
-- In `bypass-cn` mode, the legacy `BypassCNandLan.rules` rule is auto-added if the library has been installed. Existing MetaCubeX `geosite-cn` and `geoip-cn` remain as remote fallback rules, including domain matching.
+- In `bypass-cn` mode, the legacy `BypassCNandLan.rules` rule is auto-added if the library has been installed. Explicitly selected game rules are ordered before this broad legacy China IP rule, which itself is ordered before the MetaCubeX `geosite-cn` / `geoip-cn` fallback. A selected game-specific proxy rule therefore wins even when its CIDR overlaps the legacy China bypass list.
+- Existing MetaCubeX `geosite-cn` and `geoip-cn` remain enabled as remote fallback rules, including domain matching.
+- The real-core validation script checks both a proxy and direct local source rule set in a bypass-China configuration, including precedence before China GEO routes.
 
 ## Updating without rebuilding SSTap Next
 
