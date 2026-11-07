@@ -523,7 +523,7 @@ function NodesPage(props: {
         {props.batchProgress.nodeName && <small>当前节点：{props.batchProgress.nodeName} · {props.batchProgress.metric || '准备中'}</small>}
       </div>}
       {props.state.nodes.length === 0 ? <div className="empty-state"><div className="empty-icon">◈</div><b>还没有节点</b><p>粘贴分享链接，或添加一条订阅开始使用。</p></div> : <div className="node-list batch-node-list">
-        <div className="batch-node-head"><span>节点</span><span>PING</span><span>TCPING</span><span>代理延迟</span><span>下载</span><span>最近检测</span></div>
+        <div className="batch-node-head"><span></span><span></span><span>节点</span><span>PING</span><span>TCPING</span><span>代理延迟</span><span>下载</span><span>最近检测</span><span></span><span></span></div>
         {props.state.nodes.map((node) => {
           const result = props.state.nodeTestResults?.[node.id];
           return <div key={node.id} className={`node-row batch-node-row ${props.selectedNodeId === node.id ? 'selected' : ''} ${props.activeNodeId === node.id ? 'connected-node' : ''}`} onClick={() => props.setSelectedNodeId(node.id)}>
