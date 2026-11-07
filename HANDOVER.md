@@ -17,8 +17,8 @@
 - Conversion format: sing-box local source rule set, `{ "version": 1, "rules": [{ "ip_cidr": [...] }] }`.
 - Runtime storage: `%APPDATA%\SSTap Next\rules\sstap-rule-library\versions\<commit-sha>\`; `current.json` points to the active revision.
 - UI: `apps/desktop/src/renderer/src/main.tsx` / `style.css`; bridge: `apps/desktop/src/preload/index.cjs`; IPC and encrypted settings: `apps/desktop/src/main/index.cjs`.
-- TUN integration: `src/shared/tun-controller.cjs` loads selected local rules at session creation; `src/shared/tun-config.cjs` places user/game rules before broad China GEO routes.
-- China bypass retains existing remote MetaCubeX `geosite-cn` and `geoip-cn`; if a rule library is installed, legacy `BypassCNandLan.rules` is also auto-added when mode is `bypass-cn`.
+- TUN integration: `src/shared/tun-controller.cjs` loads selected local rules at session creation. Route order is DNS hijack/sniff → private/LAN direct → user-selected SSTap game rules → automatic `BypassCNandLan.rules` in bypass-cn mode → MetaCubeX GeoSite/GeoIP fallback → final proxy. The automatic broad CN table must remain after selected game rules so an overlapping CIDR cannot defeat an explicit game Proxy rule.
+- China bypass retains existing remote MetaCubeX `geosite-cn` and `geoip-cn`; if a rule library is installed, legacy `BypassCNandLan.rules` is auto-added after explicitly selected game rules when mode is `bypass-cn`.
 - Selected rule IDs are persisted in encrypted app settings. During an update, IDs no longer present upstream are pruned.
 - Both updater and selection changes are blocked while TUN is starting/running/stopping. A failed download/conversion does not replace the current pointer; prior revisions are retained.
 
@@ -41,7 +41,7 @@ Set-ExecutionPolicy -Scope Process Bypass
 .\scripts\Build-Windows.ps1
 ```
 
-The Windows build script runs Node tests, sing-box configuration validation, .NET Agent publish, TypeScript/Vite build, NSIS packaging and doctor. Confirm the test counts and installer SHA-256 from the actual workflow; do not claim local Windows TUN acceptance from CI alone.
+The Windows build script runs Node tests, 54 protocol/mode/DNS sing-box combinations plus one actual local SSTap source-rule-set configuration (Proxy + Direct), .NET Agent publish, TypeScript/Vite build, NSIS packaging and doctor. Confirm the test counts and installer SHA-256 from the actual workflow; do not claim local Windows TUN acceptance from CI alone.
 
 ## Safety constraints
 
@@ -49,5 +49,5 @@ The Windows build script runs Node tests, sing-box configuration validation, .NE
 - Keep all current fail-closed cleanup protections.
 - Never publish user node URI, password, subscription URL, encrypted state, session files or runtime configs.
 - Keep sing-box version pinned unless separately audited.
-- Do not perform rule-library updates or change active rule selection while system TUN is active.
+- Do not perform rule-library updates or change active rule selection while system TUN is starting/running/stopping.
 - The app must retain the last valid rule library when upstream download, extraction, parse or validation fails.
