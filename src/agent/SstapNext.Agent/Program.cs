@@ -69,7 +69,7 @@ static int PrintUsage()
     Console.WriteLine("  SstapNext.Agent.exe --tun-smoke-test        创建并验证 Wintun 适配器（需要管理员权限）");
     Console.WriteLine("  SstapNext.Agent.exe --tun-diagnostic        双栈 TUN 诊断（auto_route=false，不改路由/DNS）");
     Console.WriteLine("  SstapNext.Agent.exe --tun-diagnostic-full   完整 TUN 诊断（auto_route=true，短暂接管后恢复）");
-    Console.WriteLine("  SstapNext.Agent.exe --tun-inspect-adapter --id <GUID> 只读检查指定网络适配器状态");
+    Console.WriteLine("  SstapNext.Agent.exe --tun-inspect-adapter --id <GUID> --pid <PID> 只读检查网卡与历史 sing-box 进程状态");
     Console.WriteLine("  SstapNext.Agent.exe --tun-run --session <目录> 运行受桌面端心跳监控的系统 TUN 会话（管理员）");
     Console.WriteLine();
     Console.WriteLine("注意：--tun-smoke-test 不接管路由；--tun-run 会启用系统路由与 DNS 接管。");
