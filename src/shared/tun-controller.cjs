@@ -59,11 +59,11 @@ class TunController {
 
       const script = [
         "$ErrorActionPreference = 'Stop'",
-        \`$requested = [guid]'\${normalizedId}'\`,
+        `$requested = [guid]'${normalizedId}'`,
         "try {",
-        "  $matches = @(Get-NetAdapter -IncludeHidden -ErrorAction Stop | Where-Object { try { ([guid]$_.InterfaceGuid).ToString('D') -eq $requested.ToString('D') } catch { $false } })",
+        "  $foundAdapters = @(Get-NetAdapter -IncludeHidden -ErrorAction Stop | Where-Object { try { ([guid]$_.InterfaceGuid).ToString('D') -eq $requested.ToString('D') } catch { $false } })",
         "  if ($foundAdapters.Count -ne 1) { [ordered]@{ found = $false; matchCount = $foundAdapters.Count; inspectionError = 'Get-NetAdapter 未能唯一定位历史 GUID' } | ConvertTo-Json -Compress; exit 0 }",
-        "  $adapter = $matches[0]",
+        "  $adapter = $foundAdapters[0]",
         "  $addresses = @(Get-NetIPAddress -InterfaceIndex $adapter.ifIndex -ErrorAction SilentlyContinue | ForEach-Object { [string]$_.IPAddress } | Where-Object { $_ })",
         "  $rawStatus = [string]$adapter.Status",
         "  $status = if ($rawStatus -in @('Down','Disconnected')) { 'Down' } else { $rawStatus }",
@@ -88,9 +88,9 @@ class TunController {
       // Use the read-only .NET Agent as an independent fallback when NetAdapter
       // cmdlets are unavailable or cannot locate the exact historical GUID.
       const agentPath = this.getAgentPath();
-      if (!agentPath) throw new Error(\`PowerShell 网卡核验失败（\${powershellFailure}），且无法定位备用 Agent。\`);
+      if (!agentPath) throw new Error(`PowerShell 网卡核验失败（${powershellFailure}），且无法定位备用 Agent。`);
       try {
-        const result = await captureProcess(agentPath, ['--tun-inspect-adapter', '--id', \`{\${normalizedId}}\`], {
+        const result = await captureProcess(agentPath, ['--tun-inspect-adapter', '--id', `{${normalizedId}}`], {
           spawnImpl: this.spawnImpl, timeoutMs: 10000,
         });
         const output = result.stdout.replace(/^\uFEFF/, '').trim().split(/\r?\n/).filter(Boolean).at(-1);
@@ -98,7 +98,7 @@ class TunController {
         if (inspected?.found === true) return inspected;
         throw new Error(inspected?.error || inspected?.inspectionError || 'Agent 未找到该网卡');
       } catch (error) {
-        throw new Error(\`PowerShell 核验失败：\${powershellFailure}；Agent 备用核验失败：\${error.message || error}\`);
+        throw new Error(`PowerShell 核验失败：${powershellFailure}；Agent 备用核验失败：${error.message || error}`);
       }
     });
     this.onEvent = options.onEvent || (() => {});
@@ -204,7 +204,7 @@ class TunController {
     if (!exitedProcess || !adapterId || reportedStatus?.[1] !== 'Down'
       || !reportedAddresses || reportedAddresses[1].trim() !== '') return null;
 
-    const expectedId = \`{\${adapterId[1]}}\`;
+    const expectedId = `{${adapterId[1]}}`;
     const current = await this.inspectAdapter(expectedId);
     const normalizedExpected = adapterId[1].replace(/-/g, '').toLowerCase();
     const normalizedCurrent = String(current?.id || '').replace(/[{}-]/g, '').toLowerCase();
@@ -219,11 +219,11 @@ class TunController {
       || current.addresses.length !== 0
       || current.expectedTunAddress !== '172.19.0.1'
       || current.operationallyActive !== false) {
-      throw new Error(\`实时网卡核验不满足安全恢复条件：\${JSON.stringify({
+      throw new Error(`实时网卡核验不满足安全恢复条件：${JSON.stringify({
         found: current?.found, name: current?.name, description: current?.description,
         id: current?.id, status: current?.status, addresses: current?.addresses,
         operationallyActive: current?.operationallyActive, inspectionError: current?.inspectionError,
-      })}\`);
+      })}`);
     }
 
     return {
@@ -283,7 +283,7 @@ class TunController {
             verifiedInactiveAdapter = await this._verifyInactiveAdapterForOldCleanupError(sessionDocument, status);
           } catch (error) {
             verificationError = String(error.message || error);
-            console.warn(\`[TUN-RECOVERY] 旧会话网卡只读核验失败，保持启动锁：\${verificationError}\`);
+            console.warn(`[TUN-RECOVERY] 旧会话网卡只读核验失败，保持启动锁：${verificationError}`);
           }
           if (verifiedInactiveAdapter) {
             const legacyStatusPath = path.join(directory, 'status.cleanup_error-legacy.json');
@@ -297,9 +297,9 @@ class TunController {
             const recoveredAt = new Date().toISOString();
             const recoveredStatus = {
               ...status, status: 'stopped_with_warning', corePid: null, updatedAt: recoveredAt,
-              lastError: \`0.3.9 已核实历史 sing-box PID \${verifiedInactiveAdapter.exitedPid} 已退出；同一网卡 \${verifiedInactiveAdapter.adapterId} 当前为 \${verifiedInactiveAdapter.status} 且没有 IP 地址。已解除旧清理锁；保留 Windows Wintun 设备对象及原始日志，不删除网卡。\`,
+              lastError: `0.3.9 已核实历史 sing-box PID ${verifiedInactiveAdapter.exitedPid} 已退出；同一网卡 ${verifiedInactiveAdapter.adapterId} 当前为 ${verifiedInactiveAdapter.status} 且没有 IP 地址。已解除旧清理锁；保留 Windows Wintun 设备对象及原始日志，不删除网卡。`,
             };
-            const temporaryStatusPath = \`\${statusPath}.recovering\`;
+            const temporaryStatusPath = `${statusPath}.recovering`;
             await fs.writeFile(temporaryStatusPath, JSON.stringify(recoveredStatus, null, 2), 'utf8');
             await fs.rename(temporaryStatusPath, statusPath);
             status = recoveredStatus;
@@ -309,7 +309,7 @@ class TunController {
               recoveredAt, source: 'PowerShell Get-NetAdapter/Get-NetIPAddress (with .NET Agent read-only fallback)',
               ...verifiedInactiveAdapter,
             }, null, 2), 'utf8');
-            console.warn(\`[TUN-RECOVERY] 已确认历史 Wintun 已释放并正式解除旧 cleanup_error 锁：\${verifiedInactiveAdapter.adapterId}；原状态归档为 status.cleanup_error-legacy.json，日志保留。\`);
+            console.warn(`[TUN-RECOVERY] 已确认历史 Wintun 已释放并正式解除旧 cleanup_error 锁：${verifiedInactiveAdapter.adapterId}；原状态归档为 status.cleanup_error-legacy.json，日志保留。`);
           } else {
             const legacyReviewMarker = path.join(directory, '.legacy-cleanup-review-0.3.2');
             const known031StopSignalFailure = status.corePid == null
@@ -322,16 +322,16 @@ class TunController {
             // let the 0.3.2 elevated Agent perform its normal adapter ownership guard.
             if (known031StopSignalFailure) {
               try {
-                await fs.writeFile(legacyReviewMarker, \`Reviewed by SSTap Next 0.3.2 at \${new Date().toISOString()}\\n\`, { encoding: 'utf8', flag: 'wx' });
-                console.warn(\`[TUN-RECOVERY] 已隔离已知 0.3.1 停止信号遗留锁 \${expectedId}；原日志和状态均保留，后续由新版 Agent 复核接口。\`);
+                await fs.writeFile(legacyReviewMarker, `Reviewed by SSTap Next 0.3.2 at ${new Date().toISOString()}\\n`, { encoding: 'utf8', flag: 'wx' });
+                console.warn(`[TUN-RECOVERY] 已隔离已知 0.3.1 停止信号遗留锁 ${expectedId}；原日志和状态均保留，后续由新版 Agent 复核接口。`);
               } catch (error) {
                 if (error?.code !== 'EEXIST') throw error;
               }
               continue;
             }
 
-            const reason = verificationError ? \`；实时核验失败：\${verificationError}\` : '';
-            throw new Error(\`发现遗留 TUN 清理异常：\${status.lastError || directory}。请勿再次启用系统代理，先检查日志\${reason}。\`);
+            const reason = verificationError ? `；实时核验失败：${verificationError}` : '';
+            throw new Error(`发现遗留 TUN 清理异常：${status.lastError || directory}。请勿再次启用系统代理，先检查日志${reason}。`);
           }
         }
         if (!status || !terminal.has(status.status)) {
