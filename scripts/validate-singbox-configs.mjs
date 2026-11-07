@@ -144,7 +144,7 @@ async function main() {
       encoding: 'utf8', timeout: 30000, windowsHide: true,
     });
     if (legacyChecked.error || legacyChecked.status !== 0) {
-      const detail = [legacyChecked.error?.message, legacyChecked.stderr, legacyChecked.stdout].filter(Boolean).join('\\n').trim();
+      const detail = [legacyChecked.error?.message, legacyChecked.stderr, legacyChecked.stdout].filter(Boolean).join('\n').trim();
       failures.push({ caseName: 'SSTap legacy local source rule sets', detail: detail || `exit=${legacyChecked.status}` });
       console.error('[FAIL] SSTap legacy local source rule sets');
       if (detail) console.error(detail);
@@ -157,7 +157,7 @@ async function main() {
   }
 
   const expected = modes.length * dnsStrategies.length * fixtures.length + 1;
-  console.log(`\\n配置校验：${passed}/${expected} 通过`);
+  console.log(`\n配置校验：${passed}/${expected} 通过`);
   if (failures.length) {
     console.error(`失败项：${failures.map((item) => item.caseName).join('；')}`);
     process.exitCode = 5;
