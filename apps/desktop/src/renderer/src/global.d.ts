@@ -43,6 +43,7 @@ declare global {
   type SstapCoreStatus = {
     status: 'disconnected' | 'starting' | 'connected' | 'stopping' | 'error';
     connected: boolean;
+    sessionId?: string;
     nodeId?: string;
     nodeName?: string;
     server?: string;
@@ -72,6 +73,33 @@ declare global {
     lastError?: string | null;
     logPath?: string | null;
     sessionDirectory?: string | null;
+  };
+
+  type SstapNodeTrafficStat = {
+    uploadBytes: number;
+    downloadBytes: number;
+    updatedAt: string;
+  };
+
+  type SstapTrafficSample = {
+    sessionId: string;
+    mode: 'proxy' | 'tun';
+    nodeId?: string | null;
+    nodeName?: string | null;
+    startedAt?: string | null;
+    sampledAt?: string;
+    status: 'starting' | 'ok' | 'unavailable' | 'stopped';
+    active: boolean;
+    uploadBytes: number;
+    downloadBytes: number;
+    totalBytes: number;
+    uploadBps: number;
+    downloadBps: number;
+    deltaUploadBytes?: number;
+    deltaDownloadBytes?: number;
+    elapsedSeconds?: number;
+    error?: string;
+    final?: boolean;
   };
 
   type SstapCoreInfo = {
@@ -167,6 +195,7 @@ declare global {
     subscriptions: SstapSubscription[];
     speedResults: SstapSpeedResult[];
     nodeTestResults: Record<string, SstapNodeTestResult>;
+    nodeTrafficStats: Record<string, SstapNodeTrafficStat>;
     settings: {
       mode: 'global' | 'bypass-cn' | 'rule';
       speedTestUrl: string;
@@ -211,6 +240,7 @@ declare global {
       onBatchTestProgress(listener: (progress: SstapBatchTestProgress) => void): () => void;
       onCoreEvent(listener: (status: SstapCoreStatus) => void): () => void;
       onTunEvent(listener: (status: SstapTunStatus) => void): () => void;
+      onTrafficEvent(listener: (sample: SstapTrafficSample) => void): () => void;
       onSpeedProgress(listener: (progress: SstapSpeedProgress) => void): () => void;
     };
   }
