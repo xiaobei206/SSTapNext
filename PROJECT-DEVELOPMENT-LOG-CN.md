@@ -530,6 +530,8 @@
 - Release Node CI run [42365153162](https://github.com/xiaobei206/SSTapNext/actions/runs/42365153162)：107/107 PASS、0 fail；package-lock 704/704 PASS。
 - Release Windows workflow run [42365153123](https://github.com/xiaobei206/SSTapNext/actions/runs/42365153123)，job `128381544820`：sing-box 58/58、.NET 10 Agent、TS/Vite、NSIS、installer SHA、Release 发布和 artifact 上传全部成功。Release API 已确认 EXE、blockmap、SHA-256 sidecar 实际存在，哈希与大小见 `docs/RELEASE-0.3.16.md`。
 - 收尾起点 HEAD 的文档 CI run [42365557674](https://github.com/xiaobei206/SSTapNext/actions/runs/42365557674)：107/107 PASS、lock 704/704 PASS。对应 Windows run [42365557673](https://github.com/xiaobei206/SSTapNext/actions/runs/42365557673) 显示 success，但由于 v0.3.16 Release 已存在，Build/installer verification/publish/upload 步骤被 skip；不可声称该 run 重新构建安装包。
+- 文档收尾提交 `0b88f3eef4333871006bd4c3eb3bb963f58ccc0d` 的 CI run [42369369282](https://github.com/xiaobei206/SSTapNext/actions/runs/42369369282)：第一次 attempt 的 107 项中 106 通过、1 项失败；`isolates DNS cache databases ...` 在 `TunController._readAgentStatus()` 解析状态 JSON 时出现 `Unexpected end of JSON input`。该 workflow 重跑失败 job 后 attempt 2 为 **107/107 PASS、0 fail**，lock **704/704 PASS**。未修改运行时代码；此间歇性状态文件读写问题未被认定已修复，应在后续单独复现/调查。
+- 同提交 Windows run [42369369316](https://github.com/xiaobei206/SSTapNext/actions/runs/42369369316) success；Release 已存在，因此 lock、Build/installer、SHA/publish/upload 步骤按 workflow 设计被跳过。不要把它当作新建安装包的完整构建。
 
 ### 本轮文档收尾范围
 

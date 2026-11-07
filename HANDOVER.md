@@ -13,7 +13,8 @@
 - 仓库：`xiaobei206/SSTapNext`；唯一日常开发线为 `main`；正式版本 v0.3.16；`package.json`、`package-lock.json` 和 Agent 版本均为 0.3.16。
 - Release target commit：`6245eab7e953ff13c0f765691a8ad1692e15f14e`；Release：https://github.com/xiaobei206/SSTapNext/releases/tag/v0.3.16。
 - 正式 Release Node CI run [42365153162](https://github.com/xiaobei206/SSTapNext/actions/runs/42365153162)：107/107 PASS、lock 704/704 PASS。正式 Windows Release run [42365153123](https://github.com/xiaobei206/SSTapNext/actions/runs/42365153123)，job 128381544820：sing-box 58/58、Agent、TS/Vite、NSIS、安装包 SHA、EXE/blockmap/SHA sidecar 和 artifact 均成功。
-- 本次收尾开始时 main HEAD 为 `f3e27bfba1a3480317fa7555c9296dd38fc5d2fa`，比 release target 领先 1 个纯文档提交。当前 HEAD Node CI run 42365557674：107/107 PASS、lock 704/704 PASS；Windows run 42365557673 因版本 Release 已存在跳过完整打包，不能当作重新构建。
+- 初次文档收尾提交 `0b88f3eef4333871006bd4c3eb3bb963f58ccc0d`：CI run [42369369282](https://github.com/xiaobei206/SSTapNext/actions/runs/42369369282) 的首轮 attempt 出现 1 个测试失败（`tun-controller.test.mjs` DNS cache isolation，读取 `status.json` 时 `Unexpected end of JSON input`）；同 SHA 重跑后 **107/107 PASS、lock 704/704 PASS**。首次失败可能是状态文件并发读写的间歇性问题，尚未专门调查/修复。
+- 同一文档提交 Windows run [42369369316](https://github.com/xiaobei206/SSTapNext/actions/runs/42369369316) success，但因 v0.3.16 Release 已存在，Build/installer verification/publish/upload 被 skip，不是新安装包构建。
 - **尚待用户 Windows 10/11 实测：** 系统 TUN 实际启动、分流/出口/DNS、流量统计及 direct 归属、断开和至少 10 轮重连清理。逐项见 `docs/WINDOWS-ACCEPTANCE.md`。
 - **另有自动化缺口：** Agent 的非法 Clash API 形态已在源码中校验，但当前没有单独的 .NET 行为级 harness 实际执行所有负向样例；见 `docs/TEST-PLAN.md`。不把源码存在校验条件等同于负向测试已通过。
 - 当前唯一第一动作：在用户 Windows 机器安装 v0.3.16，先做普通代理和无路由 smoke test，再按验收清单进行真实 TUN 测试；不改运行时代码，除非实测发现可复现缺陷。
