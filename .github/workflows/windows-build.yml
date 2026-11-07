@@ -1,6 +1,8 @@
 name: Build and publish SSTap Next Windows installer
 
 on:
+  pull_request:
+    branches: [main]
   push:
     branches: [main]
     tags: ["v*"]
@@ -79,16 +81,16 @@ jobs:
           }
 
       - name: Verify package lock
-        if: steps.release.outputs.needs_release == 'true'
+        if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch' || steps.release.outputs.needs_release == 'true'
         run: node scripts/verify-package-lock.mjs
 
       - name: Build, test and package Windows installer
-        if: steps.release.outputs.needs_release == 'true'
+        if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch' || steps.release.outputs.needs_release == 'true'
         shell: pwsh
         run: .\\scripts\\Build-Windows.ps1 -SkipInstall
 
       - name: Verify installer and create SHA-256 file
-        if: steps.release.outputs.needs_release == 'true'
+        if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch' || steps.release.outputs.needs_release == 'true'
         shell: pwsh
         run: |
           $version = (node -p "require('./package.json').version").Trim()
@@ -119,10 +121,10 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "Failed to create GitHub Release $tag." }
 
       - name: Upload installer as workflow artifact
-        if: steps.release.outputs.needs_release == 'true'
+        if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch' || steps.release.outputs.needs_release == 'true'
         uses: actions/upload-artifact@v4
         with:
-          name: SSTapNext-${{ github.ref_name }}-Windows-x64
+          name: SSTapNext-${{ github.event.pull_request.number || github.ref_name }}-Windows-x64
           path: |
             release/SSTap Next-*-x64.exe
             release/SSTap Next-*-x64.exe.blockmap

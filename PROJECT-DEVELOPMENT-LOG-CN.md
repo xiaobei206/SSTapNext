@@ -172,3 +172,46 @@
 - 主开发日志 `PROJECT-DEVELOPMENT-LOG-CN.md` 作为 GitHub 仓库根目录长期文件保留，不打入版本源码 ZIP，避免其记录 ZIP 的 SHA-256 后产生自引用；MANIFEST 因此不包含该项目级唯一日志。GitHub 仓库初始化时应提交该日志。
 - ZIP 完整性、顶层目录、内部逐文件 SHA、外部 MANIFEST 字节一致性和外部 SHA 文件已在归档生成后交叉验证；详见本轮交接报告。
 - GitHub 状态：`xiaobei206/SSTapNext` 不存在（`get_repo` 返回 404）；当前连接没有创建 repository 的动作。未向其他仓库提交。需要 owner 先创建空 Public 仓库后再上传本源码树。
+
+## 2026-11-07 — 0.3.12 SSTap 经典规则兼容、转换与在线更新
+
+### 当前分支与交付状态
+
+- main 仍为 0.3.11；0.3.12 开发位于 feature/sstap-rule-library-0312，由 PR #1（https://github.com/xiaobei206/SSTapNext/pull/1）承载，当前尚未合并。
+- 上一轮并非丢失：PR 已包含原版 .rules 解析、下载转换、规则库管理 UI、Electron IPC、TUN rule-set 注入和文档。
+- 本轮接手后修复了新规则库字号低于 14px 的 CI 回归；没有降低或删除既有字体测试。
+- 将 .github/workflows/windows-build.yml 增加 pull_request 触发。PR 中执行 Windows 完整构建、验证产物并上传 workflow artifact；PR 不创建正式 GitHub Release。
+- 修正了分流优先级：bypass-cn 的自动 BypassCNandLan.rules 必须排在用户显式选择的游戏规则之后，避免重叠 CIDR 被提前判成 Direct，从而吞掉游戏 Proxy 规则。新增回归断言保护这一顺序。
+- 将 sing-box 核心配置检查从原 54 组协议/模式/DNS 组合，扩展为额外校验 1 份包含 proxy/direct SSTap 本地 source rule-set 的真实配置；Windows 构建输出相应说明 54+1。
+- 更新 HANDOVER.md、docs/SSTAP-RULE-CONVERSION.md、docs/WINDOWS-ACCEPTANCE.md、docs/TEST-PLAN.md、PROJECT-OVERVIEW-CN.md 等接手文档。后续对话应以 HANDOVER.md 与 PR 最新 HEAD 为准，不再使用过时的 0.3.7 开发入口描述。
+
+### 上游格式独立核验
+
+- 上游仓库：FQrabbit/SSTap-Rule，默认分支 master；检查时的 Git tree SHA 为 d0779fe5924ba02b0df3a917e61ea32a409b8a03，当时包含 190 个 .rules 文件。
+- 实际读取 BypassCNandLan.rules 的头部：第三字段为 1，对应 Direct。
+- 实际读取 League-of-Legends-us.rules 的头部：第三字段为 0，对应 Proxy。
+- 上游根目录许可证为 Apache License 2.0；转换器把 LICENSE 与版本化规则数据一起保存。
+- .rules 下载包以 commit SHA 固定版本；ZIP 条目大小、路径、压缩方式和 CRC-32 均验证后才解析。无效文件不会部分导入；失败更新不替换 current pointer，保留已有有效版本。
+
+### 本轮 GitHub Actions 证据
+
+- PR #1 在旧 HEAD 6ef901b90191c3d60c450f78d89bacd0464063f1 上，Node CI 运行 42342702709 成功；Windows 完整构建运行 42342702757 成功，覆盖 npm ci、锁文件检查、Node tests、sing-box 检查、.NET 10 Agent、TypeScript/Vite、NSIS 安装包、SHA-256 与 artifact 上传。
+- 上述成功记录早于游戏规则优先级修复和额外本地 source 规则集核心检查；不得把旧 HEAD 的成功结果冒充当前最新 HEAD 验证。
+- 后续提交已触发新一轮 PR Actions；最终合并前必须重新检查 PR 最新 HEAD 的 Node CI 与 Windows Build 均为 success。
+- 自动 Windows build 不执行真实节点握手、公网出口、TUN 路由/DNS 实机和多轮 Wintun 清理；这些仍需 Windows 10/11 设备按 docs/WINDOWS-ACCEPTANCE.md 手工验收。
+
+### 接手约束与下一步
+
+1. 只在 feature/sstap-rule-library-0312 / PR #1 上继续开发；不要直接向 main 写入 0.3.12 未验收功能。
+2. 每次更新后先核对 PR 最新 HEAD，再看对应 commit 的 Node CI 与 Windows Build；被新提交取消的旧 run 不算验证通过。
+3. 重点保留三层优先级：private/LAN 安全直连 → 用户显式游戏/规则集 → 自动大陆 IP 与 GeoSite/GeoIP fallback；其中自动大陆规则不能先于用户游戏规则。
+4. 不允许在 TUN running/transitioning 时更新规则库或更改启用选择；不允许下载/转换失败覆盖旧 current pointer。
+5. PR 合并后，仍需通过 Windows 实机确认规则下载、启动 TUN、bypass-cn/游戏覆盖、更新失败回滚和 10 轮 connect/disconnect；真实公网路径和 UDP/QUIC 单独记录。
+### 追加安全审查 — 规则更新与 TUN 生命周期互斥（2026-11-07）
+
+- 发现仅在 IPC 进入时读取一次 Agent status 仍有竞态：TUN 可能在规则更新排队期间启动；反之规则库下载/转换期间也可能有 TUN connect 请求进入。
+- TunController.isRuleLibraryMutationLocked() 现在同时检查 retained session、start/stop/recovery Promise，以及 requested/awaiting_uac/starting/running/stopping/cleanup_error 状态。启动前的 stale-session recovery 也纳入锁，不依赖 UI 是否及时收到状态事件。
+- Electron 主进程增加 ruleLibraryUpdating 互斥标志；更新 handler 进入 mutation queue 后重新检查 TUN 状态，再持有标志直到下载、转换、active pointer 切换和设置 pruning 全部结束。TUN connect 在加载 state 前后检查更新标志；进入 controller 后，in-flight start Promise 会阻止 updater 竞争。
+- 修改 routing mode/custom rules/enabledRuleIds 的设置操作，同样在 mutation queue 内检查 controller lock 和 updater flag。
+- Renderer 中，TUN start 按钮在规则更新期间禁用；分流和 DNS 设置在 cleanup_error 以及所有启动/停止过渡期间锁定。UI 是可用性提示，Electron IPC/controller 是强制安全边界。
+- 新增 3 条自动化回归：控制器启动/运行/正常停止期间锁定与解锁、cleanup_error 锁定、Electron/Renderer 互斥契约。当前最新 PR HEAD 的 CI 尚待运行完成；不得把旧 HEAD 的成功结果当作该补丁的验证证据。

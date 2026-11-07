@@ -10,6 +10,8 @@ function subscribe(channel, listener) {
 
 contextBridge.exposeInMainWorld('sstap', Object.freeze({
   getState: () => ipcRenderer.invoke('sstap:get-state'),
+  getRuleLibrary: () => ipcRenderer.invoke('sstap:rule-library-get'),
+  updateRuleLibrary: () => ipcRenderer.invoke('sstap:rule-library-update'),
   importText: (text) => ipcRenderer.invoke('sstap:import-text', text),
   addSubscription: (url, name) => ipcRenderer.invoke('sstap:subscription-add', url, name),
   refreshSubscription: (id) => ipcRenderer.invoke('sstap:subscription-refresh', id),

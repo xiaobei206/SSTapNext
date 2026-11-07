@@ -5,6 +5,7 @@ const path = require('node:path');
 const crypto = require('node:crypto');
 const { spawn } = require('node:child_process');
 const { buildTunConfig } = require('./tun-config.cjs');
+const { getEnabledSstapRuleSets } = require('./sstap-rule-library.cjs');
 
 function delay(ms) { return new Promise((resolve) => setTimeout(resolve, ms)); }
 
@@ -179,6 +180,14 @@ class TunController {
       logPath: this.session.logPath,
       sessionDirectory: this.session.directory,
     };
+  }
+
+  isRuleLibraryMutationLocked() {
+    const status = this.getStatus().status;
+    // A pending recovery/start/stop may not have published its first status yet.
+    // Any retained session or in-flight transition means rule files must not rotate.
+    return Boolean(this.session || this.startPromise || this.stopPromise || this.recoveryPromise)
+      || ['requested', 'awaiting_uac', 'starting', 'running', 'stopping', 'cleanup_error'].includes(status);
   }
 
   async _readAgentStatus(session) {
@@ -472,7 +481,8 @@ class TunController {
 
     try {
       await fs.mkdir(path.dirname(session.cachePath), { recursive: true });
-      const config = buildTunConfig(node, settings, { interfaceName: 'SSTap Next', logPath: session.logPath, cachePath: session.cachePath });
+      const importedRuleSets = await getEnabledSstapRuleSets(this.getUserDataPath(), settings.enabledRuleIds || [], session.mode);
+      const config = buildTunConfig(node, settings, { interfaceName: 'SSTap Next', logPath: session.logPath, cachePath: session.cachePath, importedRuleSets });
       const configText = JSON.stringify(config, null, 2);
       const configSha256 = crypto.createHash('sha256').update(configText, 'utf8').digest('hex');
       await fs.writeFile(session.configPath, configText, { encoding: 'utf8', flag: 'wx', mode: 0o600 });

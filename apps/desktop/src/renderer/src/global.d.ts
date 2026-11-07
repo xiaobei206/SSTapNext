@@ -91,6 +91,32 @@ declare global {
     message?: string;
   };
 
+  type SstapRuleEntry = {
+    id: string;
+    fileName: string;
+    displayName: string;
+    routeAction: 'proxy' | 'direct';
+    cidrCount: number;
+    ipv4Count: number;
+    ipv6Count: number;
+    isReadOnly: boolean;
+    author: string;
+    sourceSha256: string;
+  };
+
+  type SstapRuleLibrary = {
+    installed: boolean;
+    source: string;
+    revision: string | null;
+    updatedAt: string | null;
+    ruleCount: number;
+    totalCidrs: number;
+    skipped: Array<{ fileName: string; reason: string }>;
+    license?: string;
+    unchanged?: boolean;
+    rules: SstapRuleEntry[];
+  };
+
   type SstapState = {
     schemaVersion: number;
     nodes: SstapNode[];
@@ -104,6 +130,7 @@ declare global {
       autoRefreshHours: number;
       customRulesText: string;
       dnsStrategy: 'ipv4_only' | 'prefer_ipv4' | 'prefer_ipv6';
+      enabledRuleIds: string[];
     };
     recoveryNotice?: string;
     importSummary?: { added: number; updated: number; failed: number };
@@ -115,6 +142,8 @@ declare global {
   interface Window {
     sstap: {
       getState(): Promise<SstapState>;
+      getRuleLibrary(): Promise<SstapRuleLibrary>;
+      updateRuleLibrary(): Promise<SstapRuleLibrary>;
       importText(text: string): Promise<SstapState>;
       addSubscription(url: string, name?: string): Promise<SstapState>;
       refreshSubscription(id: string): Promise<SstapState>;

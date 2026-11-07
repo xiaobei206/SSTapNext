@@ -12,8 +12,9 @@ const { CoreController } = require('../../../../src/shared/core-controller.cjs')
 const { downloadSpeedTest } = require('../../../../src/shared/socks-speed-test.cjs');
 const { parseCustomRuleText } = require('../../../../src/shared/tun-config.cjs');
 const { TunController } = require('../../../../src/shared/tun-controller.cjs');
+const { getSstapRuleLibrary, updateSstapRuleLibrary } = require('../../../../src/shared/sstap-rule-library.cjs');
+const { version: APP_VERSION } = require('../../../../package.json');
 
-const APP_VERSION = '0.3.7';
 const MAX_SUBSCRIPTION_BYTES = 4 * 1024 * 1024;
 const FETCH_TIMEOUT_MS = 20_000;
 const USER_AGENT = `SSTapNext/${APP_VERSION}`;
@@ -26,6 +27,7 @@ const SPEED_TEST_FALLBACK_URLS = [
   'https://speedtest.tele2.net/1GB.zip',
   'https://nbg1-speed.hetzner.com/1GB.bin',
 ];
+let ruleLibraryUpdating = false;
 
 let mainWindow;
 let stateCache;
@@ -67,6 +69,7 @@ function defaultState() {
       dnsStrategy: 'ipv4_only',
       autoRefreshHours: 12,
       customRulesText: '',
+      enabledRuleIds: [],
     },
     updatedAt: new Date().toISOString(),
   };
@@ -121,13 +124,16 @@ function validateState(value) {
   const threads = [1, 2, 4, 8].includes(requestedThreads) ? requestedThreads : 1;
   const refreshHours = Number.isFinite(settings.autoRefreshHours) ? Math.min(Math.max(Math.floor(settings.autoRefreshHours), 1), 168) : 12;
   const customRulesText = typeof settings.customRulesText === 'string' ? settings.customRulesText.slice(0, 32 * 1024) : '';
+  const enabledRuleIds = Array.isArray(settings.enabledRuleIds)
+    ? [...new Set(settings.enabledRuleIds.filter((id) => typeof id === 'string' && /^sstap-[a-f0-9]{16}$/.test(id)).slice(0, 190))]
+    : [];
   const dnsStrategy = ['ipv4_only', 'prefer_ipv4', 'prefer_ipv6'].includes(settings.dnsStrategy) ? settings.dnsStrategy : defaults.settings.dnsStrategy;
   return {
     schemaVersion: 1,
     nodes: Array.isArray(value.nodes) ? value.nodes.filter(isNodeRecord) : [],
     subscriptions: Array.isArray(value.subscriptions) ? value.subscriptions.filter(isSubscriptionRecord) : [],
     speedResults: Array.isArray(value.speedResults) ? value.speedResults.filter(isSpeedResult).slice(0, 50) : [],
-    settings: { mode, speedTestUrl: url, speedTestBytes: bytes, speedTestThreads: threads, dnsStrategy, autoRefreshHours: refreshHours, customRulesText },
+    settings: { mode, speedTestUrl: url, speedTestBytes: bytes, speedTestThreads: threads, dnsStrategy, autoRefreshHours: refreshHours, customRulesText, enabledRuleIds },
     updatedAt: typeof value.updatedAt === 'string' ? value.updatedAt : new Date().toISOString(),
     ...(typeof value.recoveryNotice === 'string' ? { recoveryNotice: value.recoveryNotice } : {}),
   };
@@ -443,6 +449,41 @@ function createWindow() {
   });
 }
 
+
+ipcMain.handle('sstap:rule-library-get', async (event) => {
+  assertTrustedRenderer(event);
+  return getSstapRuleLibrary(app.getPath('userData'));
+});
+ipcMain.handle('sstap:rule-library-update', async (event) => {
+  assertTrustedRenderer(event);
+  const tun = getTunController();
+  if (ruleLibraryUpdating || tun.isRuleLibraryMutationLocked()) {
+    throw new Error('系统 TUN 尚未确认完全停止，或规则库更新正在进行；请完成当前操作后再更新 SSTap 规则库。');
+  }
+  return serializeMutation(async () => {
+    // Recheck after entering the mutation queue: TUN may have started while this
+    // request waited behind another settings write.
+    if (ruleLibraryUpdating || tun.isRuleLibraryMutationLocked()) {
+      throw new Error('系统 TUN 状态已变化或规则库正在更新；本次更新已安全取消。');
+    }
+    ruleLibraryUpdating = true;
+    try {
+      const result = await updateSstapRuleLibrary(app.getPath('userData'));
+      const state = await loadState();
+      const installed = new Set(result.rules.map((item) => item.id));
+      const selected = state.settings.enabledRuleIds || [];
+      const kept = selected.filter((id) => installed.has(id));
+      if (kept.length !== selected.length) {
+        state.settings.enabledRuleIds = kept;
+        await persistState();
+      }
+      return result;
+    } finally {
+      ruleLibraryUpdating = false;
+    }
+  });
+});
+
 ipcMain.handle('sstap:get-state', async (event) => {
   assertTrustedRenderer(event);
   await mutationQueue.catch(() => {});
@@ -492,10 +533,6 @@ ipcMain.handle('sstap:settings-save', async (event, patch) => {
   }
   if (patch.dnsStrategy !== undefined) {
     if (!['ipv4_only', 'prefer_ipv4', 'prefer_ipv6'].includes(patch.dnsStrategy)) throw new Error('DNS 地址族策略无效');
-    const tunStatus = tunController?.getStatus();
-    if (tunStatus && ['awaiting_uac', 'starting', 'running', 'stopping'].includes(tunStatus.status)) {
-      throw new Error('请先断开系统 TUN，再修改 DNS 地址族策略。');
-    }
     state.settings.dnsStrategy = patch.dnsStrategy;
   }
   if (patch.speedTestThreads !== undefined) {
@@ -508,12 +545,34 @@ ipcMain.handle('sstap:settings-save', async (event, patch) => {
     if (!Number.isInteger(hours) || hours < 1 || hours > 168) throw new Error('订阅刷新间隔必须在 1 至 168 小时之间');
     state.settings.autoRefreshHours = hours;
   }
+  const changesRoutingSettings = patch.mode !== undefined
+    || patch.customRulesText !== undefined
+    || patch.enabledRuleIds !== undefined
+    || patch.dnsStrategy !== undefined;
+  if (changesRoutingSettings && (ruleLibraryUpdating || getTunController().isRuleLibraryMutationLocked())) {
+    throw new Error('系统 TUN 尚未确认完全停止，或 SSTap 规则库正在更新；分流模式、自定义规则、游戏规则和 DNS 策略已锁定。');
+  }
+
   if (patch.customRulesText !== undefined) {
     const text = String(patch.customRulesText);
     const parsed = parseCustomRuleText(text);
     if (parsed.errors.length) throw new Error(`自定义规则格式错误：${parsed.errors.slice(0, 8).map((item) => `第 ${item.line} 行 ${item.message}`).join('；')}`);
     state.settings.customRulesText = text;
   }
+
+  if (patch.enabledRuleIds !== undefined) {
+    if (!Array.isArray(patch.enabledRuleIds) || patch.enabledRuleIds.length > 190
+      || patch.enabledRuleIds.some((id) => typeof id !== 'string' || !/^sstap-[a-f0-9]{16}$/.test(id))) {
+      throw new Error('SSTap 规则选择数据无效');
+    }
+    const library = await getSstapRuleLibrary(app.getPath('userData'));
+    const installed = new Set(library.rules.map((item) => item.id));
+    const unique = [...new Set(patch.enabledRuleIds)];
+    const missing = unique.filter((id) => !installed.has(id));
+    if (missing.length) throw new Error('部分选择的 SSTap 规则不在当前规则库中；请先刷新规则列表。');
+    state.settings.enabledRuleIds = unique;
+  }
+
   if (patch.mode !== undefined) state.settings.mode = patch.mode;
   await persistState();
   return state;
@@ -578,11 +637,15 @@ ipcMain.handle('sstap:tun-connect', async (event, nodeId) => {
   assertTrustedRenderer(event);
   if (appIsQuitting) throw new Error('软件正在退出，已阻止新的系统代理连接。');
   if (speedTestRunning) throw new Error('测速正在运行，请等测速结束后再启动系统代理。');
+  if (ruleLibraryUpdating) throw new Error('SSTap 规则库正在下载和转换，请完成后再启动系统 TUN。');
   const localStatus = getCoreController().getStatus();
   if (['connected', 'starting', 'stopping'].includes(localStatus.status)) throw new Error('本地代理核心正在运行。请先断开本地代理，再启动系统 TUN，避免两个会话同时争用网络。');
   const state = await loadState();
+  if (ruleLibraryUpdating) throw new Error('SSTap 规则库已开始更新，请稍后再启动系统 TUN。');
   const node = state.nodes.find((item) => item.id === String(nodeId || ''));
   if (!node) throw new Error('找不到所选节点，请重新选择。');
+  // connect() sets its in-flight start lock synchronously before yielding, so an
+  // updater queued after this point will see the TUN mutation lock.
   return getTunController().connect(node, state.settings);
 });
 ipcMain.handle('sstap:tun-disconnect', async (event) => {

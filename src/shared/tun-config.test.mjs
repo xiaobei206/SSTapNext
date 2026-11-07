@@ -111,3 +111,31 @@ test('rejects unknown DNS address-family settings by safely falling back to IPv4
   const config = buildTunConfig(node, { mode: 'global', dnsStrategy: 'ipv6_only' });
   assert.equal(config.dns.strategy, 'ipv4_only');
 });
+
+test('loads installed SSTap converted rule sets locally and keeps them ahead of China GEO routes', () => {
+  const importedRuleSets = [
+    { tag: 'sstap_0123456789abcdef', path: 'C:\\\\Users\\\\Test\\\\AppData\\\\SSTap Next\\\\rules\\\\game.json', action: 'proxy' },
+  ];
+  const config = buildTunConfig(node, { mode: 'bypass-cn' }, { importedRuleSets });
+  const local = config.route.rule_set.find((item) => item.tag === 'sstap_0123456789abcdef');
+  assert.deepEqual(local, { type: 'local', tag: 'sstap_0123456789abcdef', format: 'source', path: importedRuleSets[0].path });
+  const customRoute = config.route.rules.findIndex((item) => item.rule_set?.[0] === 'sstap_0123456789abcdef');
+  const chinaRoute = config.route.rules.findIndex((item) => item.rule_set?.[0] === 'geosite-cn');
+  assert.ok(customRoute >= 0 && customRoute < chinaRoute, 'legacy game proxy rules must be able to override broad China direct routes');
+  assert.equal(config.route.rules[customRoute].outbound, 'selected-proxy');
+  assert.deepEqual(config.http_clients, [{ tag: 'ruleset-download' }]);
+});
+
+test('does not add HTTP clients when only local SSTap rule sets are enabled', () => {
+  const config = buildTunConfig(node, { mode: 'global' }, {
+    importedRuleSets: [{ tag: 'sstap_0123456789abcdef', path: 'C:\\\\rules\\\\game.json', action: 'direct' }],
+  });
+  assert.equal(config.http_clients, undefined);
+  assert.equal(config.route.rule_set[0].type, 'local');
+});
+
+test('rejects unsafe imported SSTap rule-set descriptors', () => {
+  assert.throws(() => buildTunConfig(node, { mode: 'global' }, {
+    importedRuleSets: [{ tag: 'sstap_bad', path: 'C:\\\\rules\\\\x.json', action: 'proxy' }],
+  }), /无效/);
+});
