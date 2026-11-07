@@ -1,3 +1,11 @@
+## 0.3.11 — 识别已失效的 TUN 网卡对象并解除旧清理锁
+
+- 修复 0.3.10 对历史 GUID 不存在的判断过严：Windows 仍列出若干 `NotPresent` 的 sing-tun 诊断/测试适配器时，不再因此永久拦截恢复。
+- PowerShell 与 .NET Agent 的完整枚举结果允许包含 `Down`、`Disconnected` 或 `NotPresent` 且无任何 IP 的遗留接口；只有全部相关接口均非活动、未持有 TUN 地址，且历史 sing-box PID 不在运行时才可归档旧状态。
+- 任一相关接口处于 `Up`、仍有 IP 地址、地址/接口检查失败、状态未知或进程检查不完整时，继续 fail-closed 阻止启动。
+- 保留原始 `cleanup_error` 状态和日志；不删除网络适配器、Wintun 驱动、路由或 DNS。
+
+
 ## 0.3.10 — TUN 遗留状态双重核验与真实缺失恢复
 
 - 修复 0.3.9 对历史 Wintun GUID 的严格查找在接口已被 Windows 移除时仍永久保留旧清理锁的问题。
