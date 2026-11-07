@@ -225,3 +225,47 @@
 - main push 后 Node CI run 42344552127 已通过；Windows 正式 Release workflow run 42344552136 在本日志记录时仍处于 Build-Windows 步骤，Release v0.3.12 尚未从 GitHub Releases API 核实。必须再检查 run 状态、Release tag 与资产，不能只凭 workflow 已启动宣称已发布。
 - 后续开发规则：直接在 main 开始工作；任何正式用户可见功能迭代先升正式版本号并同步所有版本来源；提交 main；GitHub Actions 完成验证后创建 vX.Y.Z Release（EXE、blockmap、SHA-256）。若发现缺陷，在 main 直接修复并递增版本，必要时 Revert 错误提交，不创建长期 feature 分支。
 - GitHub PR #1 是本轮迁移遗留记录，不作为今后工作入口。旧分支 feature/sstap-rule-library-0312 未再接收提交；当前 GitHub connector 不提供删除 Git ref 的动作，因此该旧分支暂时保留但已停止使用。
+
+
+## 2026-11-07 — 0.3.12 Release 实际核验与 NEXT GPT 文档优先接力体系
+
+### Release 最终状态（覆盖本日志前文“Release 尚待核实”的当时状态）
+
+- GitHub Release：`v0.3.12` 已于 2026-11-07T05:55:28Z 发布。
+- Release 页面：https://github.com/xiaobei206/SSTapNext/releases/tag/v0.3.12
+- Tag target：`8f4be60d480e798bf3d17291230454df70674c86`。
+- Windows Release workflow：run `42344552136`，completed / success。
+- Node CI：run `42344552127`，completed / success。
+- EXE：`SSTap.Next-0.3.12-x64.exe`，174,882,504 bytes，SHA-256 `42c700f4234b50e1ee31392d84d405954c3ad773aa8778201914900a792f3cdd`。
+- Blockmap：`SSTap.Next-0.3.12-x64.exe.blockmap`，182,676 bytes。
+- SHA sidecar：`SSTap.Next-0.3.12-x64.exe.sha256`，93 bytes。
+- PR 最新功能 HEAD `b22ab5081f52a7fa57ddc8e583197ba634b7e69f` 的 Node tests 86/86、package-lock 704/704、sing-box 55/55、Windows x64 Agent、TypeScript/Vite、NSIS 和 SHA 构建通过；对应 Node CI run 42343664603、Windows build run 42343664600。
+- 文档提交的历史验证：main HEAD `9f47df51de7db1463a650126a69cdbcf62eb6970` 的 CI run 42344692593 success，Windows workflow run 42344692572 success。因 v0.3.12 Release 已存在，后者不会重建/覆盖已发布安装包。
+
+### 对前文临时状态的说明
+
+本日志上一节在 Release workflow 执行期间记录“Release 尚未从 API 核实”，那是当时真实状态，不是最终状态。现已通过 GitHub Releases API 直接确认 tag、target commit、发布时间和三个资产均存在。上一节中“main 仍为 0.3.11 / 0.3.12 在 feature 分支 / 只在 PR 开发”等文字也仅作为历史过程保留，均已被 PR 合并与后续 main-only 流程覆盖。不得再按历史段落操作。
+
+### 新 GPT 无缝接手文件
+
+- 新增仓库根目录 `START HERE NEXT GPT.md`：专门面向新对话，集中说明当前代码和 Release 状态、模块位置、安全不变量、已通过验证、尚未实机验收事项、下一步队列和上下文结束前交接模板。
+- 更新 `README.md`：顶部明确链接 START HERE，并写明 main-only 与 docs-first 规则。
+- 更新 `HANDOVER.md`：添加新 GPT 接手规则、最新 Release 事实、未完成实机验收、安全边界；明确其补充规则覆盖历史临时工作流指令。
+- 更新 `PROJECT-OVERVIEW-CN.md`：修正 main/Release 状态与历史 PR 描述；补充第一入口、真实目录结构、文档优先和上下文耗尽交接流程。
+- 更新 `docs/TEST-PLAN.md`：将状态改为已发布 0.3.12，修正 Node 86/86 基线，记录 CI/Release run 与实机测试边界。
+- 更新 `docs/WINDOWS-ACCEPTANCE.md`：修正来源为 main 当前 HEAD，Node 测试基线 86，声明未经用户实测的复选项不能视为通过。
+- 以上文档更新均在 main 直接提交；不新建分支或 PR。
+
+### 后续开发强制约束（用户明确要求）
+
+1. **每次新工作先写文档再写代码**，对功能、重构和 bug 修复均适用。必须先记录目标、现状、设计、影响文件、安全约束、验收标准、测试与回滚方案。
+2. 开发过程中出现设计变更/范围变化时即时改文档，不可把文档留到最后。
+3. 上下文快到上限时停止代码修改，先更新 START HERE、HANDOVER 和本日志，明确最后一个 commit、修改文件、已跑测试、NOT RUN、待办和下一步唯一动作。
+4. 只在 main 开发；日常不建立 feature branch / PR；正式版本递增 SemVer，GitHub Actions 验证并自动发布，问题用 Revert。
+5. 新 GPT 先读 START HERE，再读 HANDOVER、PROJECT-OVERVIEW、开发日志和任务对应专题文档；实时核对 GitHub main、Actions 和 Release，不依赖上次对话总结。
+
+### 当前真正未完成事项
+
+- 0.3.12 用户 Windows 10/11 实机验收仍未见证据：规则库实际下载/更新、代理/直连路由、bypass-cn 重叠 CIDR 优先级、更新失败保留旧 current pointer、TUN/规则更新互斥、节点公网出口、DNS、UDP/QUIC、至少 10 轮 TUN 清理。
+- 详见 `docs/WINDOWS-ACCEPTANCE.md`；CI 通过不代表实机通过。
+- 下一对话第一步：读取 START HERE NEXT GPT.md，刷新 main 当前 HEAD 和相应 Actions，然后继续 P0 Windows 实机验收或根据用户最新目标处理。
