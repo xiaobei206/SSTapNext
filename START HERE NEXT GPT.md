@@ -4,9 +4,9 @@
 >
 > 仓库：https://github.com/xiaobei206/SSTapNext  
 > 唯一开发线：**main**  
- > 当前正式发布版本：**0.3.14**（GitHub Release）
-> main 开发版本：**0.3.15（未发布）**  
-上一正式版本：**0.3.13**  
+ > 当前正式发布版本：**0.3.15**（GitHub Release）
+> main 开发版本：**0.3.16（开发/验证中）**  
+上一正式版本：**0.3.14**  
 > 本文件是新对话的第一入口；如果本文件与 GitHub 实际状态不一致，以实时仓库、Actions 和 Release 为准，并先修正文档。
 
 ---
@@ -338,3 +338,12 @@ GitHub 最新状态每次都应现查：
 - 只有对应 CI 和 Release 资产全部实际通过后才能把 0.3.15 标记已发布；CI 不等于用户实机验收。
 
 下一步：先完成本次代码检查和 Actions 结果；遇到失败先修复，再更新版本说明与交接。
+
+## 0.3.16 TUN Clash API 白名单修复（开发/验证中）
+
+- 0.3.15 用户实测：点击“启动系统接管”报 `InvalidDataException: TUN 配置包含不允许的 endpoint 或外部控制接口。`。
+- 根因：`TunRuntime.ValidateRestrictedTunConfig()` 将所有 `experimental.clash_api` 都一律拒绝，与 TUN 流量统计 API 冲突。修复已推 main commit `8efe77ab7d309057a1c8d071a2f2b52610979ab1`。
+- Agent 继续拒绝根级 endpoints；仅允许 Clash API 有且只有 `external_controller` 与 `secret` 字段，端点匹配 `127.0.0.1:<合法端口>`，secret 必须 64 位 hex；额外字段、LAN、`0.0.0.0`、IPv6、无效端口或短密钥均拒绝。
+- **注意：** 最新 v0.3.15 Release 已在更早 commit 存在。commit `8efe77...` 对应的 Windows workflow 虽显示 success，但 Verify lock、Windows build、安装包验证均 skipped，不代表修复已进入安装包。不要重用 v0.3.15 asset；目标版本必须为 0.3.16，并验证新 Actions 真正执行全部构建步骤、Release 资产和 SHA。
+- 版本说明：`docs/RELEASE-0.3.16.md`；流量设计与 Agent 白名单补充见 `docs/LIVE-TRAFFIC-AND-UI-READABILITY.md`。
+- 用户 Windows 实机安装 0.3.16 后的 TUN connect/disconnect、实时上下/下行和安全清理仍需标为 NOT RUN，直到用户实测。
