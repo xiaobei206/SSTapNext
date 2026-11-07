@@ -65,6 +65,7 @@ test('monitor establishes a baseline, then accumulates upload/download and smoot
   await monitor.pollNow();
   assert.equal(events[0].uploadBytes, 0);
   assert.equal(events[0].downloadBytes, 0);
+  assert.equal(events[0].hasBaseline, true);
   now += 1000;
   await monitor.pollNow();
   assert.equal(events[1].deltaUploadBytes, 200);
