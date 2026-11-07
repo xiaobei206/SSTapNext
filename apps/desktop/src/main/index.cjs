@@ -45,6 +45,7 @@ let quitAfterCoreStop = false;
 let appIsQuitting = false;
 let trafficPersistTimer = null;
 let trafficDirty = false;
+let trafficRevision = 0;
 
 function serializeMutation(operation) {
   const result = mutationQueue.catch(() => {}).then(async () => {
@@ -333,6 +334,7 @@ function getBatchNodeTester() {
 async function persistState() {
   saveQueue = saveQueue.catch(() => {}).then(async () => {
     const state = await loadState();
+    const trafficRevisionAtSnapshot = trafficRevision;
     if (!safeStorage.isEncryptionAvailable()) {
       throw new Error('Windows 安全存储不可用；为保护节点密码，本程序不会降级为明文保存。');
     }
@@ -351,9 +353,13 @@ async function persistState() {
     try {
       await fs.writeFile(temp, envelope, { encoding: 'utf8', mode: 0o600 });
       await fs.rename(temp, file);
-      trafficDirty = false;
-      if (trafficPersistTimer) clearTimeout(trafficPersistTimer);
-      trafficPersistTimer = null;
+      if (trafficRevision === trafficRevisionAtSnapshot) {
+        trafficDirty = false;
+        if (trafficPersistTimer) clearTimeout(trafficPersistTimer);
+        trafficPersistTimer = null;
+      } else {
+        trafficDirty = true;
+      }
     } finally {
       try { await fs.unlink(temp); } catch (error) { if (error.code !== 'ENOENT') throw error; }
     }
@@ -373,7 +379,9 @@ function scheduleTrafficPersist(immediate = false) {
   if (!trafficPersistTimer) {
     trafficPersistTimer = setTimeout(() => {
       trafficPersistTimer = null;
-      void persistState().catch((error) => {
+      void persistState().then(() => {
+        if (trafficDirty) scheduleTrafficPersist(false);
+      }).catch((error) => {
         console.error('[SSTap Next] 节点流量统计批量写入失败：', error);
         if (trafficDirty) scheduleTrafficPersist(false);
       });
@@ -411,6 +419,7 @@ function handleTrafficSample(sample) {
             updatedAt: typeof sample.sampledAt === 'string' ? sample.sampledAt : new Date().toISOString(),
           };
           trafficDirty = true;
+          trafficRevision += 1;
           void scheduleTrafficPersist(false);
         }
       }
