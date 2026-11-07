@@ -44,6 +44,7 @@ test('SSTap rule updates and routing-setting mutations are mutually exclusive wi
   assert.match(electronMain, /ruleLibraryUpdating = true/);
   assert.match(electronMain, /finally \{\s*ruleLibraryUpdating = false/);
   assert.match(electronMain, /SSTap 规则库正在下载和转换，请完成后再启动系统 TUN/);
+  assert.match(electronMain, /\|\| patch\.dnsStrategy !== undefined/);
   assert.match(renderer, /'cleanup_error'\]\.includes\(tunStatus\.status/);
   assert.match(renderer, /ruleLibraryBusy=\{ruleLibraryBusy\}/);
 });
