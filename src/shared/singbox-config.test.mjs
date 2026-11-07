@@ -20,6 +20,17 @@ test('builds a loopback-only mixed proxy config and routes through the selected 
   assert.equal(config.route.auto_detect_interface, true);
 });
 
+test('enables Clash API only with a loopback endpoint and protected session secret', () => {
+  const node = parseShareText(`vless://${uuid}@edge.example.com:443#JP`).nodes[0];
+  const endpoint = { host: '127.0.0.1', port: 25678, secret: 'a'.repeat(64) };
+  const config = buildProxyConfig(node, { listenPort: 23456, clashApi: endpoint });
+  assert.deepEqual(config.experimental.clash_api, {
+    external_controller: '127.0.0.1:25678',
+    secret: endpoint.secret,
+  });
+  assert.throws(() => buildProxyConfig(node, { clashApi: { ...endpoint, host: '0.0.0.0' } }), /只允许绑定 127.0.0.1/);
+});
+
 test('refuses to expose the local proxy to the LAN', () => {
   const node = parseShareText(`hy2://secret@hy.example.com:443#HY2`).nodes[0];
   assert.throws(() => buildProxyConfig(node, { listen: '0.0.0.0' }), /回环地址/);
