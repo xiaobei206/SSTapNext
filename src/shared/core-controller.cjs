@@ -7,6 +7,7 @@ const crypto = require('node:crypto');
 const { spawn } = require('node:child_process');
 const { buildProxyConfig } = require('./singbox-config.cjs');
 const { probeSocks5 } = require('./socks-speed-test.cjs');
+const { TrafficMonitor, createClashApiEndpoint } = require('./singbox-traffic.cjs');
 
 function delay(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -94,6 +95,7 @@ class CoreController {
     this.getUserDataPath = options.getUserDataPath;
     this.spawnImpl = options.spawnImpl || spawn;
     this.onEvent = options.onEvent || (() => {});
+    this.onTraffic = options.onTraffic || (() => {});
     this.session = null;
     this.startPromise = null;
     this.startNodeId = null;
@@ -112,6 +114,7 @@ class CoreController {
     if (!session) return structuredClone(this.lastStatus);
     return {
       status: session.status,
+      sessionId: session.sessionId,
       connected: session.status === 'connected',
       nodeId: session.node.id,
       nodeName: session.node.name,
@@ -187,7 +190,8 @@ class CoreController {
     if (!core.installed) throw new Error(core.error || 'sing-box 核心不可用');
 
     const port = await findAvailablePort('127.0.0.1');
-    const config = buildProxyConfig(node, { listen: '127.0.0.1', listenPort: port });
+    const trafficEndpoint = await createClashApiEndpoint();
+    const config = buildProxyConfig(node, { listen: '127.0.0.1', listenPort: port, clashApi: trafficEndpoint });
     const configDir = path.join(this.getUserDataPath(), 'runtime');
     await fs.mkdir(configDir, { recursive: true });
     const configPath = path.join(configDir, `session-${crypto.randomUUID()}.json`);
@@ -219,6 +223,9 @@ class CoreController {
       throw new Error(`无法启动 sing-box：${error.message || error}`);
     }
     const session = {
+      sessionId: crypto.randomUUID(),
+      trafficEndpoint,
+      trafficMonitor: null,
       node: structuredClone(node),
       proxyPort: port,
       configPath,
@@ -270,6 +277,7 @@ class CoreController {
       } else if (session.stopping) {
         session.status = 'disconnected';
       }
+      await this._stopTrafficMonitor(session).catch(() => {});
       await fs.rm(configPath, { force: true }).catch(() => {});
       if (this.session === session) this._emit();
     });
@@ -279,10 +287,12 @@ class CoreController {
       if (!ready) throw new Error(`sing-box 已启动，但本地代理端口 ${port} 未能在 15 秒内监听。${session.logs.slice(-8).join('\n')}`);
       session.status = 'connected';
       session.startedAt = new Date().toISOString();
+      this._startTrafficMonitor(session);
       this._emit();
       return this.getStatus();
     } catch (error) {
       session.lastError = String(error.message || error);
+      await this._stopTrafficMonitor(session).catch(() => {});
       session.stopping = true;
       try { child.kill('SIGTERM'); } catch { /* Process may have exited. */ }
       await Promise.race([session.exitPromise, delay(4000)]);
@@ -295,6 +305,32 @@ class CoreController {
       this._emit();
       throw error;
     }
+  }
+
+  _startTrafficMonitor(session) {
+    if (!session || session.trafficMonitor) return;
+    try {
+      session.trafficMonitor = new TrafficMonitor({
+        endpoint: session.trafficEndpoint,
+        sessionId: session.sessionId,
+        mode: 'proxy',
+        nodeId: session.node.id,
+        nodeName: session.node.name,
+        startedAt: session.startedAt,
+        onSample: this.onTraffic,
+      });
+      session.trafficMonitor.start();
+    } catch (error) {
+      // Telemetry is best-effort; it must never tear down a healthy proxy.
+      try { this.onTraffic({ sessionId: session.sessionId, mode: 'proxy', nodeId: session.node.id, status: 'unavailable', error: String(error.message || error), uploadBytes: 0, downloadBytes: 0, totalBytes: 0, uploadBps: 0, downloadBps: 0, final: false }); } catch { /* Ignore renderer delivery failures. */ }
+    }
+  }
+
+  async _stopTrafficMonitor(session) {
+    const monitor = session?.trafficMonitor;
+    if (!monitor) return;
+    session.trafficMonitor = null;
+    await monitor.stop({ pollFinal: true });
   }
 
   async _waitForProxy(session, timeoutMs) {
@@ -327,6 +363,7 @@ class CoreController {
     if (!session) return this.getStatus();
     session.stopping = true;
     session.status = 'stopping';
+    await this._stopTrafficMonitor(session).catch(() => {});
     this._emit();
     if (session.exitCode === null) {
       try { session.child.kill('SIGTERM'); } catch { /* Process may already have exited. */ }
