@@ -1,3 +1,10 @@
+## 0.3.16 — TUN 实时统计 Agent 白名单修复（开发/验证中）
+
+- 修复管理员 Agent 一律拒绝 `experimental.clash_api` 导致系统 TUN 无法启动的问题。
+- 根级 `endpoints` 仍然禁止；只允许 `127.0.0.1` 合法端口、64 位十六进制随机密钥，且 Clash API 只能有 `external_controller` 和 `secret` 两字段。
+- 保留 TUN 路由、DNS、会话 hash、网卡清理及 fail-closed 安全校验；非 loopback 地址、重复/额外字段、非法端口和密钥继续拒绝。
+- 版本目标 0.3.16；自动化与新安装包构建尚待本次 Actions 真实结果，Windows 实机验收 NOT RUN。详见 `docs/RELEASE-0.3.16.md`。
+
 ## 0.3.15 — 实时流量统计、节点累计流量与 UI 可读性（2026-11-07 已发布）
 
 - 连接中心使用 sing-box 1.14.4 Clash API /connections 展示实时上传速度、下载速度、本次上传累计、本次下载累计和会话时长。

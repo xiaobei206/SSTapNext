@@ -20,7 +20,7 @@
 - 首页显示下载速度、上传速度、本次下载累计、本次上传累计、时长；TUN 标注“含直连流量”。
 - 节点管理增加上传累计、下载累计、总流量，PING/TCPING/代理延迟/下载速度/上下载流量/总量/最近检测均可点击排序，缺失值置底。
 - 版本号淡化为普通 14px 辅助文字；`small` 全局明确 14px；节点表格扩大横向滚动范围。
-- 当前代码分支版本已提升到 package/lock/Agent 0.3.15；公开 Release 仍为 0.3.14。
+- 当前 package/lock/Agent 目标版本为 0.3.16；最新公开 Release 为 v0.3.15。v0.3.15 TUN Agent 的 Clash API 白名单缺陷由 0.3.16 修复。
 
 ### 重要边界与安全
 - 本地代理流量按 active nodeId 计入节点历史上/下行；TUN 统计只显示该系统会话总量（包含 direct 流量），不归属到节点。
@@ -37,10 +37,10 @@
 
 # SSTap Next — 当前交接摘要（2026-11-07）
 
-> 本节优先级高于下方历史记录。当前正式版本 v0.3.14 已发布。
+> 本节优先级高于下方历史记录。当前正式版本 v0.3.15 已发布；主分支目标版本为 0.3.16。
 
 - 仓库：`xiaobei206/SSTapNext`；仅 main 开发；不建立日常 feature 分支/PR；所有开发必须文档优先。
-- 当前 main package / Agent version：0.3.15（未发布）；最新公开 Release：0.3.14 / https://github.com/xiaobei206/SSTapNext/releases/tag/v0.3.14
+- 当前 main package / Agent target：0.3.16（开发/验证中）；最新公开 Release：0.3.15 / https://github.com/xiaobei206/SSTapNext/releases/tag/v0.3.15
 - Release 构建 commit：`fab186b48b0597b76afc1a79dc6e7c1dd59dbe6b`；最新 main parser/test commit：`d0fbcd52c87aa94c60aeb054789e5fc786e71868`。
 - 本轮缺陷：0.3.13 批量 PING 把可达节点误判为超时。用户 PowerShell 原生 ping 65.49.237.84 得到 45/43/43ms、0% loss。
 - 根因：旧正则要求 `time` 或 `时间` 前缀；Windows OEM 中文前缀按 UTF-8 解码可能乱码。0.3.14 只按 ASCII RTT 分隔符、数字与 `ms` 提取；真实替换字符 fixture 已覆盖。

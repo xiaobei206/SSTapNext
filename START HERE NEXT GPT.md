@@ -42,8 +42,8 @@
 
 - GitHub：xiaobei206/SSTapNext
 - 唯一开发入口：main；不新建 feature 分支或 PR。
-- 当前正式 Release：v0.3.14（2026-11-07），https://github.com/xiaobei206/SSTapNext/releases/tag/v0.3.14
-- 当前公开 Release：v0.3.14；main 的 package/Agent 开发版本已提升至 0.3.15，尚未发布；上一正式版本：0.3.13。
+- 当前正式 Release：v0.3.15（2026-11-07），https://github.com/xiaobei206/SSTapNext/releases/tag/v0.3.15
+- 当前公开 Release：v0.3.15；main 的 package/Agent 目标版本提升至 0.3.16（修复 0.3.15 TUN Agent 错误拒绝 Clash API）；上一正式版本：v0.3.14。
 - 0.3.14 Release 构建 commit：`fab186b48b0597b76afc1a79dc6e7c1dd59dbe6b`；最新 parser/test main commit：`d0fbcd52c87aa94c60aeb054789e5fc786e71868`。
 - 旧分支 `feature/sstap-rule-library-0312` 不再使用；PR #1 仅是历史迁移记录。
 

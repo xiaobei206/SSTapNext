@@ -3,7 +3,7 @@
 ## 1. 项目标识与当前状态
 
 - GitHub 仓库：`https://github.com/xiaobei206/SSTapNext`；main 是唯一可信开发线。
-- 最新公开 Release：**0.3.15**；https://github.com/xiaobei206/SSTapNext/releases/tag/v0.3.15。0.3.15 用户实测发现系统 TUN 启动被 Agent 全面拒绝 Clash API；主分支正在修复并升级到 **0.3.16**。不要把已存在的 0.3.15 Release 资产视为当前 Agent 白名单修复已包含。
+- 最新公开 Release：**0.3.15**；https://github.com/xiaobei206/SSTapNext/releases/tag/v0.3.15。当前 main 的 package/Agent 目标版本为 **0.3.16**，修复 v0.3.15 实测发现的 TUN Agent 错误拒绝 Clash API 问题。修复包的 Actions 构建和 Release 资产尚待本次版本验证。
 - 0.3.12 功能代码进入 main 的发布 commit：`8f4be60d480e798bf3d17291230454df70674c86`。其后的 main 提交为交接/文档维护，不代表另一个程序版本；新对话必须动态检查 main 最新 SHA。
 - 0.3.12 Release 已含 Windows x64 安装程序、blockmap 和 SHA-256。发布工作流 run `42344552136`、Node CI run `42344552127` 均成功；PR 最新功能 HEAD 的 Node 86/86、package-lock 704/704、sing-box 55/55、Agent、TS/Vite、NSIS 构建也通过。
 - 0.3.12 增加原版 FQrabbit SSTap `.rules` 转换、规则库在线更新、分流页面规则管理、游戏规则叠加和优先级保护。**真实 TUN/Wintun、规则库运行时行为和节点公网链路仍需用户 Windows 设备验收**，见 `docs/WINDOWS-ACCEPTANCE.md`。

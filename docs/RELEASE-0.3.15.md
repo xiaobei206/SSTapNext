@@ -44,6 +44,10 @@
 | [SSTap.Next-0.3.15-x64.exe.blockmap](https://github.com/xiaobei206/SSTapNext/releases/download/v0.3.15/SSTap.Next-0.3.15-x64.exe.blockmap) | 182,655 bytes | `8425abe5eb9ec7891f53b85e846573748c3011b4a8b0bb57634c803448990c24` |
 | [SSTap.Next-0.3.15-x64.exe.sha256](https://github.com/xiaobei206/SSTapNext/releases/download/v0.3.15/SSTap.Next-0.3.15-x64.exe.sha256) | 93 bytes | `0eed8e7bec626f3dcf37c5004f64213757c3b6b36efa77a0c7cf3aaaf2b5dfbc` |
 
+## 发布后发现的已知问题（由 0.3.16 修复）
+
+用户实测发现，v0.3.15 的系统 TUN 启动会报 `InvalidDataException: TUN 配置包含不允许的 endpoint 或外部控制接口。`。原因是本版本首次把 Clash API 用于 TUN 统计，但管理员 Agent 仍一律拒绝 `experimental.clash_api`。该 Release 资产保持原样；不能覆盖或宣称已修复。请使用新版本 v0.3.16 修复后再验证。
+
 ## Windows 实机验收（尚未完成）
 
 以下项目 CI 不能替代，必须在用户 Windows 10/11 机器安装后确认：
