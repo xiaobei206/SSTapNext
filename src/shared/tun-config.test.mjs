@@ -55,6 +55,16 @@ test('builds a dual-stack Windows TUN config with IPv4-only DNS, DNS hijack and 
   assert.equal(config.experimental.cache_file.enabled, true);
 });
 
+test('enables a protected loopback Clash API in the TUN config when requested', () => {
+  const endpoint = { host: '127.0.0.1', port: 25679, secret: 'b'.repeat(64) };
+  const config = buildTunConfig(node, { mode: 'global' }, { clashApi: endpoint });
+  assert.deepEqual(config.experimental.clash_api, {
+    external_controller: '127.0.0.1:25679',
+    secret: endpoint.secret,
+  });
+  assert.throws(() => buildTunConfig(node, { mode: 'global' }, { clashApi: { ...endpoint, host: '192.168.1.2' } }), /只允许绑定 127.0.0.1/);
+});
+
 test('bypass-China mode uses remote binary geosite and geoip rule sets with direct DNS for CN', () => {
   const config = buildTunConfig(node, { mode: 'bypass-cn' });
   assert.deepEqual(config.route.rule_set.map((item) => item.tag), ['geosite-cn', 'geoip-cn']);
