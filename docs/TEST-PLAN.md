@@ -1,40 +1,54 @@
-# 0.3.7 测试计划与当前证据
+# SSTap Next 0.3.12 — 测试计划与验证边界
 
-## 本轮设计覆盖
+## 当前版本与 CI 范围
 
-| 项目 | 测试范围 | 说明 |
+- main 当前仍为 0.3.11；0.3.12 位于 PR #1 的功能分支，合并前只以 PR 最新 HEAD 对应的 Actions 结果作为验收证据。
+- GitHub CI 执行锁定依赖安装（npm ci）、完整 Node 自动化测试和 package-lock 一致性检查。
+- package-lock 检查覆盖 704 个依赖引用；不得为“修复 CI”而弱化依赖版本范围校验。
+- 新规则库样式须满足项目全局最小字号 14px 的回归约束。
+
+## SSTap .rules 转换与规则库
+
+| 项目 | 验证范围 | 关键断言 |
 |---|---|---|
-| Node 自动化回归 | 67 项，串行 | 节点解析、代理生命周期、TUN 状态机、DNS 策略、缓存路径、测速、UI/构建契约 |
-| package-lock | 704 个依赖引用 | 版本、根依赖及 semver 锁定匹配 |
-| DNS 生成 | IPv4-only / 双栈 IPv4 优先 / 双栈 IPv6 优先 | 三种模式均保留双栈 TUN 地址 |
-| DNS 缓存隔离 | 3 个独立缓存文件名 | Agent 只允许固定文件名并限制在用户 cache 目录 |
-| 测速 403 回退 | 本地模拟 HTTP 403 + 可用备用 HTTP 源 | 验证自动切换、实际 URL 和进度提示 |
-| UI 契约 | 字号下限、主按钮交互、禁用原因、DNS/核心入口 | 防止后续样式和 IPC 改动回归 |
-| 核心升级脚本 | 当前核心版本动态检测 | 默认下载仍锁定审查版本；手动替换后使用当前二进制检查配置 |
+| 头部动作解析 | 真实上游样本与单元测试 | 第三个字段 0=proxy、1=direct；不按文件名猜动作 |
+| CIDR 解析 | IPv4、IPv6、显式前缀、缺省主机前缀 | 非法地址/前缀拒绝；重复 CIDR 去重；单文件错误不部分导入 |
+| ZIP 安全性 | ZIP 中央目录、路径、压缩方式、条目大小和 CRC-32 | 拒绝 ZIP64/分卷/加密/路径穿越/CRC 不匹配/异常大小 |
+| 在线更新 | commit 固定下载、版本目录、manifest、current.json | 相同 SHA 不重复更新；失败不切换活动版本；旧版本保留 |
+| 规则选择 | 持久化 ID、上游规则移除 | 保留仍存在的选择；清理已不存在的 ID |
+| TUN 约束 | 更新/更改选择时的 Agent 状态 | requested/awaiting_uac/starting/running/stopping 阶段禁止修改 |
+| 动作与优先级 | proxy/direct 两种动作、bypass-cn 叠加 | 游戏规则先于自动 BypassCNandLan，再先于 GeoSite/GeoIP fallback |
 
-## 0.3.7 新增回归场景
+## sing-box 实际核心检查
 
-- `Down` 且不含 `172.19.0.1` 的持久化 Wintun 适配器对象不再被判定为活动清理残留；不删除该对象。
-- `Up` 或仍含 `172.19.0.1` 的接口必须继续阻止下一次接管。
-- 0.3.7 Node suite 的两条 source-contract 测试覆盖上述判据；它们不是 .NET 编译或 Wintun 实机测试。
+Windows Build-Windows.ps1 使用本机 runtime/sing-box 中的真实核心执行：
 
-## 必须在 Windows 上由 Build-Windows.ps1 执行
+- 54 组基础组合：6 类节点协议 × 3 种分流模式 × 3 种 DNS 地址族策略。
+- 额外 1 组 SSTap 专项配置：加载两个真实格式的本地 source rule-set fixture，一个 Proxy、一个 Direct；检查规则顺序位于自动大陆规则和 GeoSite/GeoIP 之前。
+- 总计 55 次 sing-box check。若核心版本不同于默认下载基线，仍以当前核心实际校验结果为准。
 
-| 项目 | 当前状态 | 命令 |
-|---|---|---|
-| sing-box 当前核心 54 份配置检查 | 未在本 Linux 容器执行 | `npm.cmd run validate:core` |
-| .NET 10 win-x64 Agent 编译/发布 | 未在本 Linux 容器执行 | `scripts\Publish-Agent.ps1` |
-| TypeScript / Vite 正式构建 | 未在本 Linux 容器执行 | `npm.cmd run build` |
-| NSIS 安装包 | 未在本 Linux 容器执行 | `npm.cmd run dist:win` |
-| 完整 Windows 流水线 | 未在本 Linux 容器执行 | `scripts\Build-Windows.ps1` |
+## Windows 完整构建
 
-## 必须由用户确认的真实机器测试
+PR 的 Windows workflow 必须在 windows-2022 runner 上完成：
 
-- npm registry 的实际安装与 Electron postinstall 下载。
-- Windows Wintun 创建/清理、UAC 和路由/DNS 恢复。
-- 本地代理真实节点连接及下载测速源回退。
-- IPv4-only 下实际浏览器访问；双栈 DNS 两种优先级须在真实 IPv6 接入网络和具备 IPv6 出口的节点上分别测试。
-- TUN 全局 / bypass-cn / custom-rule 以及 UDP/QUIC。
-- 手动 sing-box 替换与失败回滚。
+1. Node.js 22、.NET 10 SDK 安装和 npm ci。
+2. package-lock 检查和 Node tests。
+3. 当前 sing-box 核心 55 项配置检查。
+4. .NET 10 win-x64 Agent 自包含发布。
+5. TypeScript / Vite 构建。
+6. Electron NSIS 安装包生成。
+7. 安装包、blockmap 和 SHA-256 校验并上传 workflow artifact。
 
-**当前开发容器不是 Windows，没有 .NET 10 SDK、Wintun 驱动或 Windows sing-box 核心。Node 测试通过不代表 Windows Agent 编译、54 份真实 `sing-box check`、NSIS 或 TUN 实机验收通过。**
+PR 触发构建但不发布正式 GitHub Release；正式 Release 只能由 main/tag 发布流程创建。被后续提交取消的旧 Actions run 不能作为当前 HEAD 的通过证据。
+
+## 必须由用户在 Windows 10/11 实机确认
+
+- 安装并启动当前 PR 对应安装包，检查规则库页面、搜索、启用/停用和状态展示。
+- 首次下载完整规则库；核对上游版本 SHA、规则总数、CIDR 总量和更新时间。
+- 验证头部 0/1 的 Proxy/Direct 映射，尤其游戏规则与大陆规则有 CIDR 重叠时的优先级。
+- 在 TUN 连接、断开和启动过渡阶段，确认规则更新/选择控件被禁用。
+- 模拟上游不可达、下载截断、ZIP CRC 错误或解析失败；确认旧规则版本保持可用。
+- 验证全局代理、绕过中国大陆、自定义规则、UDP/QUIC、DNS 和真实节点公网出口。
+- 至少 10 轮 TUN connect → disconnect → reconnect；检查核心真实退出、路由/DNS 恢复和 Wintun 清理状态。
+
+**CI 通过、Windows 编译和 sing-box check 不等于真实节点握手或真实 TUN 已验收。** 若出现 cleanup_error、路由/DNS 残留或非预期物理网卡直连，立即停止后续接管测试；不得用删除未知网卡、route delete、重置 Winsock 或清空 DNS 来绕过保护。
