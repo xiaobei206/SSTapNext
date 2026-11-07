@@ -75,29 +75,29 @@ function extractSstapZip(archive) {
     const ruleMatch = normalized.match(/^[^/]+\/rules\/(.+\.rules)$/i);
     const isLicense = /^[^/]+\/LICENSE$/i.test(normalized);
     if (!ruleMatch && !isLicense) continue;
-    if (flags & 1) throw new Error(\`ZIP 条目加密，不支持：\${rawName}\`);
-    if (![0, 8].includes(method)) throw new Error(\`ZIP 压缩算法不支持：\${rawName}\`);
-    if (uncompressedSize > 16 * 1024 * 1024 || compressedSize > data.length) throw new Error(\`ZIP 条目大小异常：\${rawName}\`);
-    if (localOffset + 30 > data.length || data.readUInt32LE(localOffset) !== 0x04034b50) throw new Error(\`ZIP 本地文件头损坏：\${rawName}\`);
+    if (flags & 1) throw new Error(`ZIP 条目加密，不支持：${rawName}`);
+    if (![0, 8].includes(method)) throw new Error(`ZIP 压缩算法不支持：${rawName}`);
+    if (uncompressedSize > 16 * 1024 * 1024 || compressedSize > data.length) throw new Error(`ZIP 条目大小异常：${rawName}`);
+    if (localOffset + 30 > data.length || data.readUInt32LE(localOffset) !== 0x04034b50) throw new Error(`ZIP 本地文件头损坏：${rawName}`);
     const localNameLength = data.readUInt16LE(localOffset + 26);
     const localExtraLength = data.readUInt16LE(localOffset + 28);
     const start = localOffset + 30 + localNameLength + localExtraLength;
     const end = start + compressedSize;
-    if (end > data.length) throw new Error(\`ZIP 数据越界：\${rawName}\`);
+    if (end > data.length) throw new Error(`ZIP 数据越界：${rawName}`);
     const compressed = data.subarray(start, end);
     let output;
     try {
       output = method === 0 ? Buffer.from(compressed) : zlib.inflateRawSync(compressed, { maxOutputLength: uncompressedSize + 1 });
     } catch (error) {
-      throw new Error(\`ZIP 解压失败：\${rawName}：\${error.message}\`);
+      throw new Error(`ZIP 解压失败：${rawName}：${error.message}`);
     }
-    if (output.length !== uncompressedSize || crc32(output) !== expectedCrc) throw new Error(\`ZIP 校验失败：\${rawName}\`);
+    if (output.length !== uncompressedSize || crc32(output) !== expectedCrc) throw new Error(`ZIP 校验失败：${rawName}`);
     totalSize += output.length;
     if (totalSize > MAX_EXTRACTED_BYTES) throw new Error('规则压缩包解压后超过 40 MB 安全上限');
     if (ruleMatch) {
       const relative = ruleMatch[1];
       if (relative.includes('\\') || relative.split('/').some((part) => !part || part === '..')) throw new Error('规则文件路径异常');
-      extracted.set(\`rules/\${relative}\`, output);
+      extracted.set(`rules/${relative}`, output);
     } else if (isLicense) extracted.set('LICENSE', output);
   }
   if (!extracted.has('LICENSE')) throw new Error('上游压缩包缺少 Apache LICENSE 文件');
@@ -107,10 +107,10 @@ function extractSstapZip(archive) {
 }
 
 async function readResponseLimited(response, maxBytes, label) {
-  if (!response.ok) throw new Error(\`\${label}失败：HTTP \${response.status}\`);
+  if (!response.ok) throw new Error(`${label}失败：HTTP ${response.status}`);
   const declared = Number(response.headers.get('content-length') || 0);
-  if (declared > maxBytes) throw new Error(\`\${label}超过大小限制\`);
-  if (!response.body) throw new Error(\`\${label}没有响应内容\`);
+  if (declared > maxBytes) throw new Error(`${label}超过大小限制`);
+  if (!response.body) throw new Error(`${label}没有响应内容`);
   const reader = response.body.getReader();
   const chunks = [];
   let total = 0;
@@ -121,7 +121,7 @@ async function readResponseLimited(response, maxBytes, label) {
       total += item.value.byteLength;
       if (total > maxBytes) {
         await reader.cancel();
-        throw new Error(\`\${label}超过大小限制\`);
+        throw new Error(`${label}超过大小限制`);
       }
       chunks.push(Buffer.from(item.value));
     }
@@ -157,7 +157,7 @@ async function fetchBuffer(url, maxBytes, label, timeoutMs = 60000) {
     });
     return await readResponseLimited(response, maxBytes, label);
   } catch (error) {
-    if (error.name === 'AbortError') throw new Error(\`\${label}超时\`);
+    if (error.name === 'AbortError') throw new Error(`${label}超时`);
     throw error;
   } finally { clearTimeout(timer); }
 }
@@ -209,18 +209,18 @@ async function updateSstapRuleLibrary(userDataPath, options = {}) {
   updatePromise = (async () => {
     const paths = libraryPaths(userDataPath);
     await fs.mkdir(paths.versions, { recursive: true });
-    const commit = options.sourceCommit || await fetchJson(\`\${API_BASE}/repos/\${UPSTREAM}/commits/master\`);
+    const commit = options.sourceCommit || await fetchJson(`${API_BASE}/repos/${UPSTREAM}/commits/master`);
     const revision = String(commit.sha || '');
     if (!/^[a-f0-9]{40}$/i.test(revision)) throw new Error('上游返回的 Git commit SHA 无效');
     const current = await readCurrent(userDataPath);
     if (current.manifest?.version === revision) return { ...publicManifest(current.manifest), unchanged: true };
     const archive = options.archiveBuffer || await fetchBuffer(
-      \`https://codeload.github.com/\${UPSTREAM}/zip/\${revision}\`,
+      `https://codeload.github.com/${UPSTREAM}/zip/${revision}`,
       MAX_ARCHIVE_BYTES,
       'SSTap 规则包下载',
     );
     const entries = extractSstapZip(archive);
-    const stage = path.join(paths.versions, \`.staging-\${crypto.randomUUID()}\`);
+    const stage = path.join(paths.versions, `.staging-${crypto.randomUUID()}`);
     const finalDirectory = path.join(paths.versions, revision);
     await fs.mkdir(path.join(stage, 'rules'), { recursive: true });
     const rules = [];
@@ -231,17 +231,17 @@ async function updateSstapRuleLibrary(userDataPath, options = {}) {
       for (const [sourcePath, bytes] of ruleEntries) {
         try {
           const parsed = parseSstapRule(bytes, sourcePath);
-          const outputName = \`\${parsed.id}.json\`;
+          const outputName = `${parsed.id}.json`;
           await fs.writeFile(path.join(stage, 'rules', outputName), JSON.stringify(parsed.ruleSet), { flag: 'wx' });
           const { ruleSet, ...metadata } = parsed;
-          metadata.outputFile = \`rules/\${outputName}\`;
+          metadata.outputFile = `rules/${outputName}`;
           rules.push(metadata);
           totalCidrs += parsed.cidrCount;
         } catch (error) {
           skipped.push({ fileName: path.basename(sourcePath), reason: String(error.message || error).slice(0, 500) });
         }
       }
-      if (rules.length < 10) throw new Error(\`有效 SSTap 规则数量异常，仅转换出 \${rules.length} 条\`);
+      if (rules.length < 10) throw new Error(`有效 SSTap 规则数量异常，仅转换出 ${rules.length} 条`);
       const bypass = rules.find((item) => item.fileName.toLowerCase() === 'bypasscnandlan.rules');
       if (!bypass || bypass.routeAction !== 'direct') throw new Error('中国大陆直连规则缺失或默认动作不是 Direct');
       await fs.writeFile(path.join(stage, 'LICENSE'), entries.get('LICENSE'));
@@ -263,13 +263,23 @@ async function updateSstapRuleLibrary(userDataPath, options = {}) {
         if (error.code !== 'EEXIST' && error.code !== 'ENOTEMPTY') throw error;
         await fs.rm(stage, { recursive: true, force: true });
       }
-      const tempPointer = \`\${paths.pointer}.\${crypto.randomUUID()}.tmp\`;
+      const tempPointer = `${paths.pointer}.${crypto.randomUUID()}.tmp`;
       await fs.writeFile(tempPointer, JSON.stringify({ version: revision, updatedAt: manifest.updatedAt }));
       await fs.rename(tempPointer, paths.pointer);
       const dirs = (await fs.readdir(paths.versions, { withFileTypes: true }))
         .filter((item) => item.isDirectory() && /^[a-f0-9]{40}$/i.test(item.name))
-        .map((item) => item.name).filter((name) => name !== revision).sort().reverse();
-      for (const old of dirs.slice(2)) await fs.rm(path.join(paths.versions, old), { recursive: true, force: true });
+        .map((item) => item.name).filter((name) => name !== revision);
+      const previousVersions = [];
+      for (const name of dirs) {
+        let updatedAt = '';
+        try {
+          const saved = JSON.parse(await fs.readFile(path.join(paths.versions, name, 'manifest.json'), 'utf8'));
+          updatedAt = typeof saved.updatedAt === 'string' ? saved.updatedAt : '';
+        } catch { /* an incomplete orphan revision is ranked oldest */ }
+        previousVersions.push({ name, updatedAt });
+      }
+      previousVersions.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+      for (const old of previousVersions.slice(2)) await fs.rm(path.join(paths.versions, old.name), { recursive: true, force: true });
       return publicManifest(manifest);
     } catch (error) {
       await fs.rm(stage, { recursive: true, force: true });
@@ -282,8 +292,7 @@ async function updateSstapRuleLibrary(userDataPath, options = {}) {
 async function getEnabledSstapRuleSets(userDataPath, enabledRuleIds = [], mode = 'global') {
   const current = await readCurrent(userDataPath);
   if (!current.manifest) {
-    if (mode === 'bypass-cn') throw new Error('尚未安装 SSTap 中国大陆规则库。请先在分流模式页面点击“更新 SSTap 规则库”。');
-    if (enabledRuleIds.length) throw new Error('已启用的 SSTap 规则库不存在；请检查规则库版本并重新选择规则。');
+    if (enabledRuleIds.length) throw new Error('已启用的 SSTap 规则库不存在；请先在分流模式页面更新规则库。');
     return [];
   }
   const ids = new Set(Array.isArray(enabledRuleIds) ? enabledRuleIds : []);
@@ -296,7 +305,7 @@ async function getEnabledSstapRuleSets(userDataPath, enabledRuleIds = [], mode =
   const result = [];
   for (const item of selected) {
     if (!/^sstap-[a-f0-9]{16}$/.test(item.id) || !/^rules\/sstap-[a-f0-9]{16}\.json$/.test(item.outputFile)) {
-      throw new Error(\`SSTap 规则清单包含不安全文件路径：\${item.fileName}\`);
+      throw new Error(`SSTap 规则清单包含不安全文件路径：${item.fileName}`);
     }
     const file = path.join(current.directory, item.outputFile);
     await fs.access(file);

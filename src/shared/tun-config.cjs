@@ -148,7 +148,7 @@ function buildTunConfig(node, settings = {}, options = {}) {
   const importedRuleSets = Array.isArray(options.importedRuleSets) ? options.importedRuleSets : [];
   for (const item of importedRuleSets) {
     if (!item || !/^sstap_[a-f0-9]{16}$/.test(String(item.tag || ''))
-      || typeof item.path !== 'string' || !/^(?:[a-zA-Z]:\\\\|\\\\\\\\|\/)/.test(item.path)
+      || typeof item.path !== 'string' || !(/^[a-zA-Z]:\\/.test(item.path) || /^\\\\/.test(item.path) || item.path.startsWith('/'))
       || !['proxy', 'direct'].includes(item.action)) {
       throw new Error('导入的 SSTap 规则集路径、标签或路由动作无效');
     }

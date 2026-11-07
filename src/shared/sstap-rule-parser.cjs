@@ -8,18 +8,18 @@ const MAX_CIDRS = 1_000_000;
 
 function validateCidr(value, line) {
   const input = String(value || '').trim();
-  if (!input || input.length > 80 || /[\s,]/.test(input)) throw new Error(\`第 \${line} 行：CIDR 格式无效\`);
+  if (!input || input.length > 80 || /[\s,]/.test(input)) throw new Error(`第 ${line} 行：CIDR 格式无效`);
   const parts = input.split('/');
-  if (parts.length > 2) throw new Error(\`第 \${line} 行：CIDR 前缀格式无效\`);
+  if (parts.length > 2) throw new Error(`第 ${line} 行：CIDR 前缀格式无效`);
   const address = parts[0];
   const family = net.isIP(address);
-  if (!family) throw new Error(\`第 \${line} 行：不是有效的 IPv4/IPv6 地址：\${input}\`);
+  if (!family) throw new Error(`第 ${line} 行：不是有效的 IPv4/IPv6 地址：${input}`);
   const prefixText = parts[1];
-  if (prefixText !== undefined && !/^\d+$/.test(prefixText)) throw new Error(\`第 \${line} 行：CIDR 前缀格式无效：\${input}\`);
+  if (prefixText !== undefined && !/^\d+$/.test(prefixText)) throw new Error(`第 ${line} 行：CIDR 前缀格式无效：${input}`);
   const prefix = prefixText === undefined ? (family === 4 ? 32 : 128) : Number(prefixText);
   const max = family === 4 ? 32 : 128;
-  if (!Number.isInteger(prefix) || prefix < 0 || prefix > max) throw new Error(\`第 \${line} 行：CIDR 前缀超出范围：\${input}\`);
-  return { cidr: \`\${address}/\${prefix}\`, family };
+  if (!Number.isInteger(prefix) || prefix < 0 || prefix > max) throw new Error(`第 ${line} 行：CIDR 前缀超出范围：${input}`);
+  return { cidr: `${address}/${prefix}`, family };
 }
 
 function parseSstapRule(input, sourcePath = 'import.rules') {
@@ -34,7 +34,7 @@ function parseSstapRule(input, sourcePath = 'import.rules') {
   const fields = header.slice(1).split(',').map((item) => item.trim());
   if (fields.length < 3 || !fields[0]) throw new Error('SSTap 规则头字段不足：至少需要英文标识、显示名称和动作类型');
   const actionCode = fields[2];
-  if (actionCode !== '0' && actionCode !== '1') throw new Error(\`不支持的 SSTap 默认动作：\${actionCode}（0=代理，1=直连）\`);
+  if (actionCode !== '0' && actionCode !== '1') throw new Error(`不支持的 SSTap 默认动作：${actionCode}（0=代理，1=直连）`);
   const routeAction = actionCode === '0' ? 'proxy' : 'direct';
   const displayName = fields[1] || fields[0];
   const cidrs = [];
@@ -59,11 +59,11 @@ function parseSstapRule(input, sourcePath = 'import.rules') {
       if (errors.length >= 20) break;
     }
   }
-  if (errors.length) throw new Error(\`规则文件包含无效行，拒绝部分导入：\${errors.slice(0, 8).join('；')}\`);
+  if (errors.length) throw new Error(`规则文件包含无效行，拒绝部分导入：${errors.slice(0, 8).join('；')}`);
   if (!cidrs.length) throw new Error('规则文件没有任何有效 CIDR');
   const normalizedPath = String(sourcePath).replace(/\\/g, '/').replace(/^.*?rules\//i, '').replace(/^\/+/, '');
   const fileName = normalizedPath.split('/').pop() || 'import.rules';
-  const id = \`sstap-\${crypto.createHash('sha256').update(normalizedPath.toLowerCase()).digest('hex').slice(0, 16)}\`;
+  const id = `sstap-${crypto.createHash('sha256').update(normalizedPath.toLowerCase()).digest('hex').slice(0, 16)}`;
   const digest = crypto.createHash('sha256').update(buffer).digest('hex');
   return {
     id,

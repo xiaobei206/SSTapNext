@@ -12,7 +12,7 @@ function makeArchive() {
   const rules = {
     'SSTap-Rule-master/rules/BypassCNandLan.rules': '#BypassCNandLan,CN直连,1,1,1,0,0,0\n1.0.1.0/24\n10.0.0.0/8',
   };
-  for (let i = 0; i < 12; i += 1) rules[\`SSTap-Rule-master/rules/Game-\${i}.rules\`] = \`#Game-\${i},游戏\${i},0,0,1,0,1,0,Tester\n\${20 + i}.0.0.0/8\`;
+  for (let i = 0; i < 12; i += 1) rules[`SSTap-Rule-master/rules/Game-${i}.rules`] = `#Game-${i},游戏${i},0,0,1,0,1,0,Tester\n${20 + i}.0.0.0/8`;
   rules['SSTap-Rule-master/LICENSE'] = 'Apache License 2.0';
   return makeZip(rules);
 }

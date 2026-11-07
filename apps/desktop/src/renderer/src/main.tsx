@@ -16,6 +16,9 @@ function formatBytes(value: number): string {
 function App() {
   const [page, setPage] = useState<Page>('home');
   const [state, setState] = useState<SstapState | null>(null);
+  const [ruleLibrary, setRuleLibrary] = useState<SstapRuleLibrary>({ installed: false, source: 'FQrabbit/SSTap-Rule', revision: null, updatedAt: null, ruleCount: 0, totalCidrs: 0, skipped: [], rules: [] });
+  const [ruleLibraryBusy, setRuleLibraryBusy] = useState(false);
+  const [ruleSearch, setRuleSearch] = useState('');
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [coreBusy, setCoreBusy] = useState(false);
@@ -42,6 +45,7 @@ function App() {
     const unsubscribeCore = window.sstap.onCoreEvent(setCoreStatus);
     const unsubscribeTun = window.sstap.onTunEvent(setTunStatus);
     const unsubscribeSpeed = window.sstap.onSpeedProgress(setSpeedProgress);
+    window.sstap.getRuleLibrary().then(setRuleLibrary).catch((reason: unknown) => setError(String(reason)));
     window.sstap.getState()
       .then((result) => {
         setState(result);
@@ -158,6 +162,37 @@ function App() {
 
   async function saveMode(mode: SstapState['settings']['mode']) {
     await runAction(() => window.sstap.saveSettings({ mode }), '分流模式已保存');
+  }
+
+
+  async function updateRuleLibrary() {
+    setRuleLibraryBusy(true);
+    setError('');
+    try {
+      const next = await window.sstap.updateRuleLibrary();
+      setRuleLibrary(next);
+      if (state) {
+        const installedIds = new Set(next.rules.map((item) => item.id));
+        const selected = state.settings.enabledRuleIds || [];
+        const kept = selected.filter((id) => installedIds.has(id));
+        if (kept.length !== selected.length) setState(await window.sstap.saveSettings({ enabledRuleIds: kept }));
+      }
+      setNotice(next.unchanged
+        ? 'SSTap 规则库已是最新版本（' + next.ruleCount + ' 条规则）'
+        : '规则库更新完成：转换 ' + next.ruleCount + ' 条规则，共 ' + next.totalCidrs.toLocaleString() + ' 条 IP 网段' + (next.skipped.length ? '；跳过 ' + next.skipped.length + ' 个不兼容文件' : ''));
+    } catch (reason) {
+      setError(String(reason instanceof Error ? reason.message : reason));
+    } finally {
+      setRuleLibraryBusy(false);
+    }
+  }
+
+  async function toggleSstapRule(ruleId: string, enabled: boolean) {
+    if (!state) return;
+    const current = new Set(state.settings.enabledRuleIds || []);
+    if (enabled) current.add(ruleId);
+    else current.delete(ruleId);
+    await runAction(() => window.sstap.saveSettings({ enabledRuleIds: [...current] }), enabled ? '已启用 SSTap 规则' : '已停用 SSTap 规则');
   }
 
   async function saveDnsStrategy(dnsStrategy: SstapState['settings']['dnsStrategy']) {
@@ -297,7 +332,7 @@ function App() {
 
         {page === 'home' && <HomePage state={state} selectedNode={selectedNode} onPage={setPage} coreStatus={coreStatus} tunStatus={tunStatus} tunBusy={tunBusy} toggleTun={toggleTunConnection} coreInfo={coreInfo} coreBusy={coreBusy} speedTestBusy={speedTestBusy} toggleConnection={toggleConnection} runSpeedTest={runSelectedSpeedTest} recheckCore={recheckCore} />}
         {page === 'nodes' && <NodesPage state={state} importErrors={importErrors} busy={busy || coreBusy || speedTestBusy} importText={importText} setImportText={setImportText} pasteFromClipboard={pasteFromClipboard} importClipboard={importClipboard} subscriptionUrl={subscriptionUrl} setSubscriptionUrl={setSubscriptionUrl} subscriptionName={subscriptionName} setSubscriptionName={setSubscriptionName} addSubscription={addSubscription} refreshSubscription={refreshSubscription} deleteSubscription={deleteSubscription} selectedNodeId={selectedNodeId} setSelectedNodeId={setSelectedNodeId} activeNodeId={coreStatus.connected ? coreStatus.nodeId || '' : tunStatus.connected ? tunStatus.nodeId || '' : ''} removeNode={removeNode} />}
-        {page === 'rules' && <RulesPage mode={state.settings.mode} saveMode={saveMode} busy={busy} customRulesText={customRulesText} setCustomRulesText={setCustomRulesText} saveCustomRules={saveCustomRules} tunConnected={tunStatus.connected || false} />}
+        {page === 'rules' && <RulesPage mode={state.settings.mode} saveMode={saveMode} busy={busy} customRulesText={customRulesText} setCustomRulesText={setCustomRulesText} saveCustomRules={saveCustomRules} tunConnected={tunStatus.connected || false} ruleLibrary={ruleLibrary} ruleLibraryBusy={ruleLibraryBusy} ruleSearch={ruleSearch} setRuleSearch={setRuleSearch} updateRuleLibrary={updateRuleLibrary} enabledRuleIds={state.settings.enabledRuleIds || []} toggleSstapRule={toggleSstapRule} />}
         {page === 'speed' && <SpeedPage speedUrl={speedUrl} setSpeedUrl={setSpeedUrl} speedBytes={speedBytes} setSpeedBytes={setSpeedBytes} threads={threads} setThreads={setThreads} save={saveSpeedSettings} busy={busy} selectedNode={selectedNode} runTest={runSelectedSpeedTest} testing={speedTestBusy} progress={speedProgress} latestResult={latestSpeedResult || state.speedResults?.[0] || null} history={state.speedResults || []} cancelTest={cancelSelectedSpeedTest} />}
         {page === 'settings' && <SettingsPage state={state} coreInfo={coreInfo} tunConnected={Boolean(tunStatus.connected)} saveDnsStrategy={saveDnsStrategy} openCoreFolder={openCoreFolder} />}
       </main>
@@ -377,13 +412,66 @@ function NodesPage(props: {
   </div>;
 }
 
-function RulesPage({ mode, saveMode, busy, customRulesText, setCustomRulesText, saveCustomRules, tunConnected }: { mode: SstapState['settings']['mode']; saveMode: (mode: SstapState['settings']['mode']) => void; busy: boolean; customRulesText: string; setCustomRulesText: (value: string) => void; saveCustomRules: () => void; tunConnected: boolean }) {
+function RulesPage({ mode, saveMode, busy, customRulesText, setCustomRulesText, saveCustomRules, tunConnected, ruleLibrary, ruleLibraryBusy, ruleSearch, setRuleSearch, updateRuleLibrary, enabledRuleIds, toggleSstapRule }: {
+  mode: SstapState['settings']['mode'];
+  saveMode: (mode: SstapState['settings']['mode']) => void;
+  busy: boolean;
+  customRulesText: string;
+  setCustomRulesText: (value: string) => void;
+  saveCustomRules: () => void;
+  tunConnected: boolean;
+  ruleLibrary: SstapRuleLibrary;
+  ruleLibraryBusy: boolean;
+  ruleSearch: string;
+  setRuleSearch: (value: string) => void;
+  updateRuleLibrary: () => void;
+  enabledRuleIds: string[];
+  toggleSstapRule: (id: string, enabled: boolean) => void;
+}) {
   const options: Array<{ id: SstapState['settings']['mode']; title: string; desc: string; icon: string }> = [
     { id: 'global', title: '全局代理', desc: '所有公网 IPv4 / IPv6 TCP、UDP 默认通过代理；私有局域网网段直连。', icon: '◎' },
-    { id: 'bypass-cn', title: '绕过中国大陆', desc: '使用 GeoSite / GeoIP 中国规则集直连，中国大陆以外流量通过代理。', icon: '⌖' },
+    { id: 'bypass-cn', title: '绕过中国大陆', desc: '使用 GeoSite / GeoIP 中国规则集直连；未命中流量通过代理。', icon: '⌖' },
     { id: 'rule', title: '自定义规则', desc: '按域名、IP 网段、进程、目标端口或 TCP/UDP 协议分流；未匹配规则默认代理。', icon: '⌘' },
   ];
-  return <div className="page-stack"><div className="page-intro"><div><h2>分流模式</h2><p>所选模式会在下一次启动系统 TUN 时真正写入 sing-box 路由配置。</p></div><span className={`pill ${tunConnected ? 'pill-green' : 'pill-blue'}`}>{tunConnected ? '当前 TUN 正在使用此策略' : '下次连接生效'}</span></div><div className="mode-list">{options.map((option) => <button key={option.id} className={`mode-card ${mode === option.id ? 'chosen' : ''}`} onClick={() => saveMode(option.id)} disabled={busy || tunConnected}><span className="mode-icon">{option.icon}</span><span className="mode-copy"><b>{option.title}</b><small>{option.desc}</small></span><span className="radio-indicator">{mode === option.id ? '✓' : ''}</span></button>)}</div>{mode === 'rule' && <section className="panel-card"><div className="panel-heading"><div><div className="panel-title">自定义规则</div><div className="panel-desc">每行一条，格式与常见代理规则相似；自上而下匹配。</div></div></div><textarea className="import-textarea" value={customRulesText} onChange={(event) => setCustomRulesText(event.target.value)} placeholder={`DOMAIN-SUFFIX,example.com,proxy\nDOMAIN,internal.example,direct\nIP-CIDR,10.0.0.0/8,direct,no-resolve\nPROCESS-NAME,game.exe,proxy\nDST-PORT,5000-6000,proxy\nNETWORK,udp,proxy`} disabled={tunConnected} /><div className="helper-text">支持 DOMAIN、DOMAIN-SUFFIX、DOMAIN-KEYWORD、IP-CIDR、IP-CIDR6、PROCESS-NAME、PROCESS-PATH、DST-PORT、NETWORK。目标：proxy / direct / block。</div><button className="button button-primary" onClick={saveCustomRules} disabled={busy || tunConnected}>保存并校验规则</button></section>}<div className="warning-card"><b>系统接管说明</b><p>Windows TUN 会接管系统 IPv4/IPv6 路由，并启用 DNS 劫持。启动需要 UAC 管理员权限。系统 Agent 通过心跳监控桌面端，退出或崩溃后会尝试停止 sing-box；若状态显示清理异常，请勿再次连接，先核查日志和网卡。</p></div></div>;
+  const enabled = new Set(enabledRuleIds);
+  const filteredRules = ruleLibrary.rules.filter((rule) => (rule.fileName + ' ' + rule.displayName + ' ' + rule.author).toLowerCase().includes(ruleSearch.trim().toLowerCase()));
+  const autoChinaRule = ruleLibrary.rules.find((rule) => rule.fileName.toLowerCase() === 'bypasscnandlan.rules');
+  return <div className="page-stack">
+    <div className="page-intro"><div><h2>分流模式</h2><p>基础流量策略与可叠加的规则库独立配置；所选规则会在下一次启动系统 TUN 时生效。</p></div><span className={'pill ' + (tunConnected ? 'pill-green' : 'pill-blue')}>{tunConnected ? '当前 TUN 正在使用此策略' : '下次连接生效'}</span></div>
+    <div className="mode-list">{options.map((option) => <button key={option.id} className={'mode-card ' + (mode === option.id ? 'chosen' : '')} onClick={() => saveMode(option.id)} disabled={busy || tunConnected}><span className="mode-icon">{option.icon}</span><span className="mode-copy"><b>{option.title}</b><small>{option.desc}</small></span><span className="radio-indicator">{mode === option.id ? '✓' : ''}</span></button>)}</div>
+    {mode === 'rule' && <section className="panel-card"><div className="panel-heading"><div><div className="panel-title">自定义规则</div><div className="panel-desc">每行一条，格式与常见代理规则相似；自上而下匹配。</div></div></div><textarea className="import-textarea" value={customRulesText} onChange={(event) => setCustomRulesText(event.target.value)} placeholder={'DOMAIN-SUFFIX,example.com,proxy\nDOMAIN,internal.example,direct\nIP-CIDR,10.0.0.0/8,direct,no-resolve\nPROCESS-NAME,game.exe,proxy\nDST-PORT,5000-6000,proxy\nNETWORK,udp,proxy'} disabled={tunConnected} /><div className="helper-text">支持 DOMAIN、DOMAIN-SUFFIX、DOMAIN-KEYWORD、IP-CIDR、IP-CIDR6、PROCESS-NAME、PROCESS-PATH、DST-PORT、NETWORK。目标：proxy / direct / block。</div><button className="button button-primary" onClick={saveCustomRules} disabled={busy || tunConnected}>保存并校验规则</button></section>}
+    <section className="panel-card sstap-rule-library">
+      <div className="panel-heading"><div><div className="panel-title">SSTap 经典游戏规则库</div><div className="panel-desc">兼容 FQrabbit/SSTap-Rule 原始 .rules 文件；下载后自动解析头部动作、去重并转换为 sing-box 本地 JSON 规则集。</div></div><button className="button button-primary" onClick={updateRuleLibrary} disabled={ruleLibraryBusy || tunConnected}>{ruleLibraryBusy ? '正在下载并转换…' : ruleLibrary.installed ? '检查并更新规则库' : '下载并安装规则库'}</button></div>
+      <div className="rule-library-meta">
+        <span className={ruleLibrary.installed ? 'pill pill-green' : 'pill pill-blue'}>{ruleLibrary.installed ? '规则库已安装' : '尚未安装'}</span>
+        <span>{ruleLibrary.ruleCount} 条规则</span><span>{ruleLibrary.totalCidrs.toLocaleString()} 个 IP 网段</span>
+        {ruleLibrary.revision && <span>版本 {ruleLibrary.revision.slice(0, 12)}</span>}
+        {ruleLibrary.updatedAt && <span>更新于 {new Date(ruleLibrary.updatedAt).toLocaleString()}</span>}
+        {ruleLibrary.skipped.length > 0 && <span className="rule-skipped">{ruleLibrary.skipped.length} 个文件未兼容</span>}
+      </div>
+      <div className="helper-text">规则数据与软件版本分开存储。今后点击更新即可重新下载并转换，不需要重新安装或编译 SSTap Next。规则库来源：Apache-2.0 · FQrabbit/SSTap-Rule。</div>
+      {mode === 'bypass-cn' && <div className="rule-auto-note"><b>中国大陆规则：</b>{autoChinaRule ? autoChinaRule.displayName + '（' + autoChinaRule.cidrCount.toLocaleString() + ' 个网段）自动加载' : '当前使用内置 GeoSite / GeoIP 远程规则'}；其他 GEO 规则仍保留。</div>}
+      {ruleLibrary.installed && <>
+        <input className="text-input rule-search" value={ruleSearch} onChange={(event) => setRuleSearch(event.target.value)} placeholder="搜索游戏名称、规则文件或作者…" disabled={tunConnected} />
+        <div className="sstap-rule-list">
+          {filteredRules.length === 0 && <div className="sub-empty">没有匹配的规则。</div>}
+          {filteredRules.map((rule) => {
+            const automatic = mode === 'bypass-cn' && rule.id === autoChinaRule?.id;
+            const checked = automatic || enabled.has(rule.id);
+            return <label className="sstap-rule-row" key={rule.id}>
+              <input type="checkbox" checked={checked} disabled={busy || tunConnected || automatic || ruleLibraryBusy} onChange={(event) => toggleSstapRule(rule.id, event.target.checked)} />
+              <span className="sstap-rule-name"><b>{rule.displayName}</b><small>{rule.fileName}{rule.author ? ' · ' + rule.author : ''}</small></span>
+              <span className={'sstap-rule-action ' + (rule.routeAction === 'proxy' ? 'route-proxy' : 'route-direct')}>{rule.routeAction === 'proxy' ? '代理' : '直连'}</span>
+              <span className="sstap-rule-count">{rule.cidrCount.toLocaleString()} IP{rule.ipv6Count ? ' · IPv6 ' + rule.ipv6Count : ''}</span>
+              {automatic && <span className="sstap-rule-auto">大陆模式自动</span>}
+            </label>;
+          })}
+        </div>
+        <div className="helper-text">原版 SSTap 规则头部的 0=代理、1=直连会被保留。选中的游戏规则排在中国 GEO 规则之前，因此可以覆盖较宽泛的中国大陆直连规则。</div>
+      </>}
+    </section>
+    <div className="warning-card"><b>系统接管说明</b><p>Windows TUN 会接管系统 IPv4/IPv6 路由，并启用 DNS 劫持。启动需要 UAC 管理员权限。系统 Agent 通过心跳监控桌面端，退出或崩溃后会尝试停止 sing-box；若状态显示清理异常，请勿再次连接，先核查日志和网卡。</p></div>
+  </div>;
 }
 
 function SpeedPage(props: {

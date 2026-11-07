@@ -12,8 +12,9 @@ const { CoreController } = require('../../../../src/shared/core-controller.cjs')
 const { downloadSpeedTest } = require('../../../../src/shared/socks-speed-test.cjs');
 const { parseCustomRuleText } = require('../../../../src/shared/tun-config.cjs');
 const { TunController } = require('../../../../src/shared/tun-controller.cjs');
+const { getSstapRuleLibrary, updateSstapRuleLibrary } = require('../../../../src/shared/sstap-rule-library.cjs');
+const { version: APP_VERSION } = require('../../../../package.json');
 
-const APP_VERSION = '0.3.7';
 const MAX_SUBSCRIPTION_BYTES = 4 * 1024 * 1024;
 const FETCH_TIMEOUT_MS = 20_000;
 const USER_AGENT = `SSTapNext/${APP_VERSION}`;
@@ -67,6 +68,7 @@ function defaultState() {
       dnsStrategy: 'ipv4_only',
       autoRefreshHours: 12,
       customRulesText: '',
+      enabledRuleIds: [],
     },
     updatedAt: new Date().toISOString(),
   };
@@ -121,13 +123,16 @@ function validateState(value) {
   const threads = [1, 2, 4, 8].includes(requestedThreads) ? requestedThreads : 1;
   const refreshHours = Number.isFinite(settings.autoRefreshHours) ? Math.min(Math.max(Math.floor(settings.autoRefreshHours), 1), 168) : 12;
   const customRulesText = typeof settings.customRulesText === 'string' ? settings.customRulesText.slice(0, 32 * 1024) : '';
+  const enabledRuleIds = Array.isArray(settings.enabledRuleIds)
+    ? [...new Set(settings.enabledRuleIds.filter((id) => typeof id === 'string' && /^sstap-[a-f0-9]{16}$/.test(id)).slice(0, 190))]
+    : [];
   const dnsStrategy = ['ipv4_only', 'prefer_ipv4', 'prefer_ipv6'].includes(settings.dnsStrategy) ? settings.dnsStrategy : defaults.settings.dnsStrategy;
   return {
     schemaVersion: 1,
     nodes: Array.isArray(value.nodes) ? value.nodes.filter(isNodeRecord) : [],
     subscriptions: Array.isArray(value.subscriptions) ? value.subscriptions.filter(isSubscriptionRecord) : [],
     speedResults: Array.isArray(value.speedResults) ? value.speedResults.filter(isSpeedResult).slice(0, 50) : [],
-    settings: { mode, speedTestUrl: url, speedTestBytes: bytes, speedTestThreads: threads, dnsStrategy, autoRefreshHours: refreshHours, customRulesText },
+    settings: { mode, speedTestUrl: url, speedTestBytes: bytes, speedTestThreads: threads, dnsStrategy, autoRefreshHours: refreshHours, customRulesText, enabledRuleIds },
     updatedAt: typeof value.updatedAt === 'string' ? value.updatedAt : new Date().toISOString(),
     ...(typeof value.recoveryNotice === 'string' ? { recoveryNotice: value.recoveryNotice } : {}),
   };
@@ -443,6 +448,31 @@ function createWindow() {
   });
 }
 
+
+ipcMain.handle('sstap:rule-library-get', async (event) => {
+  assertTrustedRenderer(event);
+  return getSstapRuleLibrary(app.getPath('userData'));
+});
+ipcMain.handle('sstap:rule-library-update', async (event) => {
+  assertTrustedRenderer(event);
+  const tunStatus = getTunController().getStatus();
+  if (['requested', 'awaiting_uac', 'starting', 'running', 'stopping'].includes(tunStatus.status)) {
+    throw new Error('请先断开系统 TUN，再更新 SSTap 规则库；避免运行中的路由读取到版本切换。');
+  }
+  return serializeMutation(async () => {
+    const result = await updateSstapRuleLibrary(app.getPath('userData'));
+    const state = await loadState();
+    const installed = new Set(result.rules.map((item) => item.id));
+    const selected = state.settings.enabledRuleIds || [];
+    const kept = selected.filter((id) => installed.has(id));
+    if (kept.length !== selected.length) {
+      state.settings.enabledRuleIds = kept;
+      await persistState();
+    }
+    return result;
+  });
+});
+
 ipcMain.handle('sstap:get-state', async (event) => {
   assertTrustedRenderer(event);
   await mutationQueue.catch(() => {});
@@ -514,6 +544,24 @@ ipcMain.handle('sstap:settings-save', async (event, patch) => {
     if (parsed.errors.length) throw new Error(`自定义规则格式错误：${parsed.errors.slice(0, 8).map((item) => `第 ${item.line} 行 ${item.message}`).join('；')}`);
     state.settings.customRulesText = text;
   }
+
+  if (patch.enabledRuleIds !== undefined) {
+    const tunStatus = getTunController().getStatus();
+    if (['requested', 'awaiting_uac', 'starting', 'running', 'stopping'].includes(tunStatus.status)) {
+      throw new Error('请先断开系统 TUN，再修改已启用的 SSTap 游戏规则。');
+    }
+    if (!Array.isArray(patch.enabledRuleIds) || patch.enabledRuleIds.length > 190
+      || patch.enabledRuleIds.some((id) => typeof id !== 'string' || !/^sstap-[a-f0-9]{16}$/.test(id))) {
+      throw new Error('SSTap 规则选择数据无效');
+    }
+    const library = await getSstapRuleLibrary(app.getPath('userData'));
+    const installed = new Set(library.rules.map((item) => item.id));
+    const unique = [...new Set(patch.enabledRuleIds)];
+    const missing = unique.filter((id) => !installed.has(id));
+    if (missing.length) throw new Error('部分选择的 SSTap 规则不在当前规则库中；请先刷新规则列表。');
+    state.settings.enabledRuleIds = unique;
+  }
+
   if (patch.mode !== undefined) state.settings.mode = patch.mode;
   await persistState();
   return state;
