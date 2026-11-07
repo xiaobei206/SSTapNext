@@ -450,3 +450,24 @@
 ### NOT RUN / 下一步
 
 - 用户尚未安装 0.3.14 实机复测；需对原目标 65.49.237.84 批量检测，确认列表 PING 约 43ms，与 PowerShell 原生 45/43/43ms 对照；抽查可达与不可达节点。CI 不能代替实机。
+
+
+## 2026-11-07 — 0.3.15 实时流量统计与 UI 可读性：文档先行设计
+
+### 用户需求
+- 连接中心显示实时上传/下载速度，以及分开计数的本次上传累计、本次下载累计。
+- 节点管理显示各节点累计上传、累计下载、合计；PING、TCPING、代理延迟、下载速度和流量列可以点击排序。
+- 左下角版本号淡化并与周围字号一致；全 UI 检查并改善过小字号。
+
+### 设计与技术确认
+- 设计文档：`docs/LIVE-TRAFFIC-AND-UI-READABILITY.md`。
+- 当前核心 sing-box 1.14.4 的源码已核实 `experimental/clashapi/connections.go`：`GET /connections` 返回 `uploadTotal` 与 `downloadTotal`。启用 Clash API 使用随机 loopback 端口与随机 Bearer secret。
+- 本地代理会话所有流量走 `selected-proxy`，可以按当前 nodeId 记录历史累计。
+- TUN 分流可走 `direct`；其全局会话计数不能安全归到当前节点。因此首页标注 TUN 总量含直连，节点累计仅统计本地代理会话。
+- 每秒采样仅更新内存/UI，每 10 秒批量加密写入，断开/退出做 final flush。
+- 节点列表增加上/下行/合计列及升降序点击表头；缺失值始终置底、稳定排序，不改变选中/活动/勾选。
+- CSS 已巡检：现有显式 font-size 最小值为 14px，但浏览器默认 `small` 可能缩成约 13px；将全局 `small` 下限明确为 14px。版本号改为 14px、正常字重和侧栏辅助文字色。
+
+### 文档提交
+- 设计提交：`f592fc721d2b097f35fc44eb5ef5aea8ecfa6cf6`。
+- 本阶段只创建设计文档，运行时代码和测试 NOT STARTED；下一步先同步交接与测试计划，再开始实现。
