@@ -31,3 +31,19 @@ test('0.3.7 release UI, DNS and manual core-update contracts remain present', ()
   assert.match(coreDocs, /sing-box\.exe/);
   assert.match(coreDocs, /SHA-256/);
 });
+
+test('SSTap rule updates and routing-setting mutations are mutually exclusive with TUN lifecycle', () => {
+  const electronMain = read('apps/desktop/src/main/index.cjs');
+  const tunController = read('src/shared/tun-controller.cjs');
+  const renderer = read('apps/desktop/src/renderer/src/main.tsx');
+
+  assert.match(tunController, /isRuleLibraryMutationLocked\(\)/);
+  assert.match(tunController, /this\.session \|\| this\.startPromise \|\| this\.stopPromise \|\| this\.recoveryPromise/);
+  assert.match(electronMain, /let ruleLibraryUpdating = false/);
+  assert.match(electronMain, /tun\.isRuleLibraryMutationLocked\(\)/);
+  assert.match(electronMain, /ruleLibraryUpdating = true/);
+  assert.match(electronMain, /finally \{\s*ruleLibraryUpdating = false/);
+  assert.match(electronMain, /SSTap 规则库正在下载和转换，请完成后再启动系统 TUN/);
+  assert.match(renderer, /'cleanup_error'\]\.includes\(tunStatus\.status/);
+  assert.match(renderer, /ruleLibraryBusy=\{ruleLibraryBusy\}/);
+});
