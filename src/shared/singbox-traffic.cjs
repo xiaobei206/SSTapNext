@@ -103,6 +103,7 @@ class TrafficMonitor {
       startedAt: this.startedAt,
       sampledAt,
       status,
+      hasBaseline: Boolean(this.lastTotals),
       active: !this.stopped,
       uploadBytes: this.totalUploadBytes,
       downloadBytes: this.totalDownloadBytes,
