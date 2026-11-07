@@ -1,11 +1,11 @@
-## 0.3.15 — 实时流量统计、节点累计流量与 UI 可读性（main 开发中，尚未发布）
+## 0.3.15 — 实时流量统计、节点累计流量与 UI 可读性（2026-11-07 已发布）
 
 - 连接中心使用 sing-box 1.14.4 Clash API /connections 展示实时上传速度、下载速度、本次上传累计、本次下载累计和会话时长。
 - 节点管理增加独立累计上传、累计下载与合计；节点累计只统计本地代理会话。TUN 会话总量包含 direct 流量，只显示在连接中心，不错误记入节点。
 - PING、TCPING、代理延迟、下载速度、累计上传、累计下载、总流量和最近检测标题支持点击升/降序；缺失值固定置底。
 - 主进程按 10 秒批次加密持久化节点流量，断开/退出时 flush；Clash API 只监听 loopback 并使用每会话随机 Bearer secret。
 - 版本标签弱化为 14px 普通辅助文字；全局 HTML small 统一 14px。
-- 自动化/Windows 构建待本轮 main HEAD 的 GitHub Actions 验证；Windows 实机连接与 TUN 验收仍未执行。本条不代表已发布。
+- Node CI 107/107、lock 704/704、sing-box 58/58；Windows Agent、TypeScript/Vite、NSIS、EXE、blockmap、SHA-256 与 Release 发布均成功。Windows 实机连接与 TUN 验收仍未执行。详情见 `docs/RELEASE-0.3.15.md`。
 ## 0.3.14 — Windows ICMP PING 解析修复（2026-11-07 已发布）
 
 - 修复 Windows 中文 ping.exe 子进程输出经过 UTF-8 解码后，中文前缀乱码导致有效 RTT 未被识别、批量 PING 误报全部超时的问题。
