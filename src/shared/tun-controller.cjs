@@ -8,6 +8,23 @@ const { buildTunConfig } = require('./tun-config.cjs');
 
 function delay(ms) { return new Promise((resolve) => setTimeout(resolve, ms)); }
 
+function relatedAdaptersOf(inspection) {
+  if (Array.isArray(inspection)) return inspection;
+  if (Array.isArray(inspection?.relatedAdapters)) return inspection.relatedAdapters;
+  return inspection?.relatedAdapters ? [inspection.relatedAdapters] : [];
+}
+
+function allRelatedAdaptersInactive(inspection) {
+  return relatedAdaptersOf(inspection).every((adapter) => {
+    const status = String(adapter?.status || '').replace(/\s+/g, '').toLowerCase();
+    const addresses = Array.isArray(adapter?.addresses) ? adapter.addresses : null;
+    return ['down', 'disconnected', 'notpresent'].includes(status)
+      && addresses !== null && addresses.length === 0
+      && adapter?.operationallyActive !== true
+      && !adapter?.inspectionError;
+  });
+}
+
 function captureProcess(executable, args, options = {}) {
   const spawnImpl = options.spawnImpl || spawn;
   const timeoutMs = options.timeoutMs || 20000;
@@ -79,14 +96,10 @@ class TunController {
         "} catch { [ordered]@{ found = $false; inspectionComplete = $false; inspectionError = $_.Exception.Message } | ConvertTo-Json -Compress -Depth 6; exit 0 }"
       ].join('; ');
 
-      const relatedAdaptersOf = (inspection) => {
-        if (Array.isArray(inspection?.relatedAdapters)) return inspection.relatedAdapters;
-        return inspection?.relatedAdapters ? [inspection.relatedAdapters] : [];
-      };
       const confirmsAbsent = (inspection) => inspection?.found === false
         && inspection.inspectionComplete === true
         && inspection.matchCount === 0
-        && relatedAdaptersOf(inspection).length === 0
+        && allRelatedAdaptersInactive(inspection)
         && inspection.processCheckComplete === true
         && inspection.singBoxProcessRunning === false;
 
@@ -126,7 +139,7 @@ class TunController {
 
       if (confirmsAbsent(powershellInspection) && confirmsAbsent(agentInspection)) {
         return {
-          found: false, absent: true, inspectionComplete: true, matchCount: 0, relatedAdapters: [],
+          found: false, absent: true, inspectionComplete: true, matchCount: 0, relatedAdapters: [...relatedAdaptersOf(powershellInspection), ...relatedAdaptersOf(agentInspection)],
           id: '{' + normalizedId + '}', processId: requestedPid,
           processCheckComplete: true, singBoxProcessRunning: false,
           expectedTunAddress: '172.19.0.1', operationallyActive: false,
@@ -245,14 +258,12 @@ class TunController {
     const current = await this.inspectAdapter(expectedId, exitedPid);
     const normalizedExpected = adapterId[1].replace(/-/g, '').toLowerCase();
     const normalizedCurrent = String(current?.id || '').replace(/[{}-]/g, '').toLowerCase();
-    const relatedAdapters = Array.isArray(current?.relatedAdapters)
-      ? current.relatedAdapters
-      : current?.relatedAdapters ? [current.relatedAdapters] : [];
+    const relatedAdapters = relatedAdaptersOf(current);
 
     if (current?.absent === true) {
       const sources = Array.isArray(current.verificationSources) ? current.verificationSources : [];
       if (current.found !== false || current.inspectionComplete !== true
-        || current.matchCount !== 0 || relatedAdapters.length !== 0
+        || current.matchCount !== 0 || !allRelatedAdaptersInactive(current)
         || current.processCheckComplete !== true || current.singBoxProcessRunning !== false
         || current.expectedTunAddress !== '172.19.0.1'
         || current.operationallyActive !== false
@@ -283,9 +294,7 @@ class TunController {
       || current.addresses.length !== 0
       || current.expectedTunAddress !== '172.19.0.1'
       || current.operationallyActive !== false
-      || relatedAdapters.length > 1
-      || (relatedAdapters.length === 1
-        && String(relatedAdapters[0].id || '').replace(/[{}-]/g, '').toLowerCase() !== normalizedExpected)) {
+      || !allRelatedAdaptersInactive(current)) {
       throw new Error('实时网卡核验不满足安全恢复条件：' + JSON.stringify({
         found: current?.found, name: current?.name, description: current?.description,
         id: current?.id, status: current?.status, addresses: current?.addresses,
@@ -365,10 +374,12 @@ class TunController {
 
             const recoveredAt = new Date().toISOString();
             const releaseSummary = verifiedInactiveAdapter.adapterAbsent
-              ? '0.3.10 已通过 PowerShell 与 Agent 双重枚举确认历史接口 ' + verifiedInactiveAdapter.adapterId
-                + ' 已不存在，sing-box PID ' + verifiedInactiveAdapter.exitedPid + ' 当前未运行。'
-              : '0.3.10 已核实历史 sing-box PID ' + verifiedInactiveAdapter.exitedPid
-                + ' 已退出；同一网卡 ' + verifiedInactiveAdapter.adapterId + ' 当前为 ' + verifiedInactiveAdapter.status + ' 且没有 IP 地址。';
+              ? '0.3.11 已通过 PowerShell 与 Agent 双重枚举确认历史接口 ' + verifiedInactiveAdapter.adapterId
+                + ' 已不存在；所有可见的 SSTap/sing-tun 相关接口均为非活动状态且没有 IP 地址，历史 sing-box PID '
+                + verifiedInactiveAdapter.exitedPid + ' 当前未运行。'
+              : '0.3.11 已核实历史 sing-box PID ' + verifiedInactiveAdapter.exitedPid
+                + ' 已退出；同一网卡 ' + verifiedInactiveAdapter.adapterId + ' 当前为 ' + verifiedInactiveAdapter.status
+                + ' 且没有 IP 地址，所有可见的 SSTap/sing-tun 相关接口也均为非活动状态。';
             const recoveredStatus = {
               ...status, status: 'stopped_with_warning', corePid: null, updatedAt: recoveredAt,
               lastError: releaseSummary + ' 已解除旧清理锁；保留原始状态与日志，不删除网卡、驱动、路由或 DNS。',
@@ -379,8 +390,8 @@ class TunController {
             status = recoveredStatus;
 
             const recoveryMarkerName = verifiedInactiveAdapter.adapterAbsent
-              ? '.verified-absent-adapter-recovered-0.3.10'
-              : '.verified-inactive-adapter-recovered-0.3.10';
+              ? '.verified-absent-adapter-recovered-0.3.11'
+              : '.verified-inactive-adapter-recovered-0.3.11';
             const recoveryMarker = path.join(directory, recoveryMarkerName);
             await fs.writeFile(recoveryMarker, JSON.stringify({
               recoveredAt, source: 'PowerShell Get-NetAdapter -IncludeHidden + .NET NetworkInterface enumeration; historical sing-box PID check',
