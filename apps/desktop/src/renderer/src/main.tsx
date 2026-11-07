@@ -331,11 +331,11 @@ function App() {
         {notice && <div className="notice"><span>✓</span><div>{notice}</div><button onClick={() => setNotice('')}>×</button></div>}
         {error && <div className="error-banner"><span>!</span><div>{error}</div><button onClick={() => setError('')}>×</button></div>}
 
-        {page === 'home' && <HomePage state={state} selectedNode={selectedNode} onPage={setPage} coreStatus={coreStatus} tunStatus={tunStatus} tunBusy={tunBusy} toggleTun={toggleTunConnection} coreInfo={coreInfo} coreBusy={coreBusy} speedTestBusy={speedTestBusy} toggleConnection={toggleConnection} runSpeedTest={runSelectedSpeedTest} recheckCore={recheckCore} />}
+        {page === 'home' && <HomePage state={state} selectedNode={selectedNode} onPage={setPage} coreStatus={coreStatus} tunStatus={tunStatus} tunBusy={tunBusy} toggleTun={toggleTunConnection} coreInfo={coreInfo} coreBusy={coreBusy} speedTestBusy={speedTestBusy} toggleConnection={toggleConnection} runSpeedTest={runSelectedSpeedTest} recheckCore={recheckCore} ruleLibraryBusy={ruleLibraryBusy} />}
         {page === 'nodes' && <NodesPage state={state} importErrors={importErrors} busy={busy || coreBusy || speedTestBusy} importText={importText} setImportText={setImportText} pasteFromClipboard={pasteFromClipboard} importClipboard={importClipboard} subscriptionUrl={subscriptionUrl} setSubscriptionUrl={setSubscriptionUrl} subscriptionName={subscriptionName} setSubscriptionName={setSubscriptionName} addSubscription={addSubscription} refreshSubscription={refreshSubscription} deleteSubscription={deleteSubscription} selectedNodeId={selectedNodeId} setSelectedNodeId={setSelectedNodeId} activeNodeId={coreStatus.connected ? coreStatus.nodeId || '' : tunStatus.connected ? tunStatus.nodeId || '' : ''} removeNode={removeNode} />}
         {page === 'rules' && <RulesPage mode={state.settings.mode} saveMode={saveMode} busy={busy} customRulesText={customRulesText} setCustomRulesText={setCustomRulesText} saveCustomRules={saveCustomRules} tunConnected={tunStatus.connected || false} tunLocked={tunRulesLocked} ruleLibrary={ruleLibrary} ruleLibraryBusy={ruleLibraryBusy} ruleSearch={ruleSearch} setRuleSearch={setRuleSearch} updateRuleLibrary={updateRuleLibrary} enabledRuleIds={state.settings.enabledRuleIds || []} toggleSstapRule={toggleSstapRule} />}
         {page === 'speed' && <SpeedPage speedUrl={speedUrl} setSpeedUrl={setSpeedUrl} speedBytes={speedBytes} setSpeedBytes={setSpeedBytes} threads={threads} setThreads={setThreads} save={saveSpeedSettings} busy={busy} selectedNode={selectedNode} runTest={runSelectedSpeedTest} testing={speedTestBusy} progress={speedProgress} latestResult={latestSpeedResult || state.speedResults?.[0] || null} history={state.speedResults || []} cancelTest={cancelSelectedSpeedTest} />}
-        {page === 'settings' && <SettingsPage state={state} coreInfo={coreInfo} tunConnected={Boolean(tunStatus.connected)} tunLocked={tunRulesLocked} saveDnsStrategy={saveDnsStrategy} openCoreFolder={openCoreFolder} />}
+        {page === 'settings' && <SettingsPage state={state} coreInfo={coreInfo} tunLocked={tunRulesLocked} saveDnsStrategy={saveDnsStrategy} openCoreFolder={openCoreFolder} />}
       </main>
     </div>
   );
@@ -355,6 +355,7 @@ function HomePage(props: {
   toggleConnection: () => void;
   runSpeedTest: () => void;
   recheckCore: () => void;
+  ruleLibraryBusy: boolean;
 }) {
   const connected = props.coreStatus.connected;
   const tunConnected = Boolean(props.tunStatus.connected);
@@ -370,14 +371,15 @@ function HomePage(props: {
   const tunActionLabel = tunConnected ? '断开系统 TUN' : props.tunBusy || props.tunStatus.status === 'awaiting_uac' || props.tunStatus.status === 'starting' ? '正在启动系统接管…' : '启动系统级接管';
   const tunBlockedByCleanup = props.tunStatus.status === 'cleanup_error';
   const tunBlockedByMissingCore = !props.coreInfo.installed && !tunConnected;
-  const tunButtonDisabled = props.tunBusy || props.coreBusy || props.speedTestBusy || (!props.selectedNode && !tunConnected)
+  const tunButtonDisabled = props.tunBusy || props.coreBusy || props.speedTestBusy || props.ruleLibraryBusy || (!props.selectedNode && !tunConnected)
     || tunBlockedByCleanup || tunBlockedByMissingCore
     || ['starting', 'stopping', 'awaiting_uac'].includes(props.tunStatus.status || '') || (connected && !tunConnected);
   const tunButtonTitle = tunBlockedByCleanup
     ? '上一次 TUN 会话清理异常；为保护系统网络，暂时禁止再次接管。请查看错误和 Agent 日志。'
-    : tunBlockedByMissingCore ? '未找到 sing-box 核心，请先安装或修复核心。'
-      : tunButtonDisabled
-        ? (!props.selectedNode && !tunConnected ? '请先导入并选择一个节点' : connected && !tunConnected ? '请先断开本地代理，再启动系统接管' : '当前有操作正在进行，请稍后重试')
+    : props.ruleLibraryBusy ? 'SSTap 规则库正在下载和转换；完成后再启动系统 TUN。'
+      : tunBlockedByMissingCore ? '未找到 sing-box 核心，请先安装或修复核心。'
+        : tunButtonDisabled
+          ? (!props.selectedNode && !tunConnected ? '请先导入并选择一个节点' : connected && !tunConnected ? '请先断开本地代理，再启动系统接管' : '当前有操作正在进行，请稍后重试')
         : tunConnected ? '断开系统 TUN 接管' : '启动 Windows 系统级流量接管';
   return <div className="content-grid">
     <section className="hero-card">
@@ -497,10 +499,9 @@ function SpeedPage(props: {
   return <div className="page-stack"><div className="page-intro"><div><h2>节点测速</h2><p>通过所选节点的本地 SOCKS5 代理下载，不会绕过节点直接测速；结果按节点保存。</p></div><span className="pill pill-green">真实下载已接入</span></div><div className="two-column"><section className="panel-card"><div className="panel-heading"><div><div className="panel-title">测速参数</div><div className="panel-desc">所有节点使用相同的测速源、下载量和线程数。</div></div></div><label>测速文件 URL</label><input className="text-input" value={props.speedUrl} onChange={(event) => props.setSpeedUrl(event.target.value)} placeholder="https://example.com/1GB.bin" /><div className="helper-text">默认 Hetzner 1 GB 测试文件；主测速源被拒绝或不可用时，会自动尝试其他官方镜像。自定义地址建议支持 HTTP Range。</div><label>目标下载量</label><div className="preset-row"><button className={props.speedBytes === '10000000' ? 'preset active' : 'preset'} onClick={() => props.setSpeedBytes('10000000')}>10 MB</button><button className={props.speedBytes === '100000000' ? 'preset active' : 'preset'} onClick={() => props.setSpeedBytes('100000000')}>100 MB</button><button className={props.speedBytes === '500000000' ? 'preset active' : 'preset'} onClick={() => props.setSpeedBytes('500000000')}>500 MB</button></div><input className="text-input" type="number" min="1000000" max="1000000000" value={props.speedBytes} onChange={(event) => props.setSpeedBytes(event.target.value)} /><div className="helper-text">范围 1 MB 至 1 GB；测速流式读取，文件不会写入磁盘。</div><label>并发线程</label><select className="text-input" value={props.threads} onChange={(event) => props.setThreads(event.target.value)}><option value="1">单线程（推荐，观察单连接表现）</option><option value="2">2 线程</option><option value="4">4 线程</option><option value="8">8 线程</option></select><div className="form-row speed-action-row"><button className="button button-quiet" disabled={props.busy} onClick={props.save}>保存测速设置</button><button className="button button-primary" disabled={props.busy || props.testing || !props.selectedNode} onClick={props.runTest}>{props.testing ? '正在测速…' : '测试当前节点'}</button>{props.testing && <button className="button button-quiet danger-text" onClick={props.cancelTest}>取消测速</button>}</div><div className="security-note">测试期间如未连接该节点，软件会临时启动核心，完成后自动停止；若已连接同一节点则复用当前连接。</div></section><section className="panel-card speed-info"><div className="panel-heading"><div><div className="panel-title">测速结果</div><div className="panel-desc">{props.selectedNode ? `当前选择：${props.selectedNode.name}` : '请先选择一个节点'}</div></div></div>{props.testing && <div className="speed-progress-wrap"><div className="speed-progress-label"><span>{formatBytes(props.progress.receivedBytes || 0)} / {formatBytes(props.progress.totalBytes || Number(props.speedBytes) || 0)}</span><b>{Math.round(ratio * 100)}%</b></div><div className="speed-progress-track"><div className="speed-progress-value" style={{ width: `${ratio * 100}%` }} /></div><small>{props.progress.completedWorkers || 0} / {props.progress.threads || Number(props.threads) || 1} 个下载线程完成</small>{props.progress.message && <small className="speed-fallback-message">{props.progress.message}</small>}</div>}{props.latestResult ? <><div className="speed-result-hero"><div><span>平均下载速度</span><b>{props.latestResult.averageMbps.toFixed(2)} <small>Mbps</small></b></div><div className="speed-result-badge">{props.latestResult.threads} 线程</div></div><div className="metric-list"><div><span>峰值采样速度</span><b>{props.latestResult.peakMbps.toFixed(2)} Mbps</b></div><div><span>HTTP 响应延迟</span><b>{props.latestResult.latencyMs} ms</b></div><div><span>实际下载量</span><b>{formatBytes(props.latestResult.bytes)}</b></div><div><span>下载耗时</span><b>{(props.latestResult.elapsedMs / 1000).toFixed(2)} 秒</b></div><div><span>测速节点</span><b>{props.latestResult.nodeName}</b></div><div><span>测试源</span><b>{new URL(props.latestResult.url).hostname}</b></div><div><span>测试时间</span><b>{new Date(props.latestResult.testedAt).toLocaleString()}</b></div></div></> : <div className="empty-state speed-empty"><div className="empty-icon">↗</div><b>还没有测速结果</b><p>保存参数后，点击“测试当前节点”开始实际下载。</p></div>}{(props.progress.status === 'error' || props.progress.status === 'cancelled') && props.progress.message && <div className={props.progress.status === 'error' ? 'speed-error-text' : 'speed-cancel-text'}>{props.progress.message}</div>}{props.history.length > 0 && <div className="speed-history"><div className="panel-title">最近测速记录</div>{props.history.slice(0, 8).map((item, index) => <div className="speed-history-row" key={`${item.testedAt}-${item.nodeId}-${index}`}><div><b>{item.nodeName}</b><small>{new Date(item.testedAt).toLocaleString()} · {item.threads} 线程 · {formatBytes(item.bytes)}</small></div><div><strong>{item.averageMbps.toFixed(2)} Mbps</strong><small>{item.latencyMs} ms</small></div></div>)}</div>}</section></div></div>;
 }
 
-function SettingsPage({ state, coreInfo, tunConnected, tunLocked, saveDnsStrategy, openCoreFolder }: {
+function SettingsPage({ state, coreInfo, tunLocked, saveDnsStrategy, openCoreFolder }: {
   state: SstapState;
   coreInfo: SstapCoreInfo;
-  tunConnected: boolean;
   tunLocked: boolean;
   saveDnsStrategy: (strategy: SstapState['settings']['dnsStrategy']) => void;
   openCoreFolder: () => void;
