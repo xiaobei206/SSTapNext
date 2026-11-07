@@ -78,7 +78,15 @@ function App() {
   useEffect(() => {
     const unsubscribeCore = window.sstap.onCoreEvent(setCoreStatus);
     const unsubscribeTun = window.sstap.onTunEvent(setTunStatus);
-    const unsubscribeTraffic = window.sstap.onTrafficEvent(setTraffic);
+    const unsubscribeTraffic = window.sstap.onTrafficEvent((sample) => {
+      setTraffic(sample);
+      if (sample.mode === 'proxy' && sample.nodeId && sample.nodeTrafficStat) {
+        setState((current) => current ? {
+          ...current,
+          nodeTrafficStats: { ...(current.nodeTrafficStats || {}), [sample.nodeId!]: sample.nodeTrafficStat! },
+        } : current);
+      }
+    });
     const unsubscribeSpeed = window.sstap.onSpeedProgress(setSpeedProgress);
     const unsubscribeBatch = window.sstap.onBatchTestProgress((progress) => {
       setBatchTestProgress(progress);
