@@ -1,3 +1,18 @@
+## 0.3.15 设计阶段：实时流量统计与可读性
+
+设计文档：`LIVE-TRAFFIC-AND-UI-READABILITY.md`。当前仅设计，代码与测试均 NOT STARTED。
+
+验收范围：
+- Clash API /connections 真实核心返回 `uploadTotal`、`downloadTotal`，本次上传与下载独立累计；速率差分、计时、连接重置及 final sample 正确。
+- API 仅监听 loopback + 每会话随机 secret；Renderer 不持有 API 地址或凭据。
+- 本地代理统计准确累加到对应 nodeId；TUN 包含 direct 时只展示系统会话总量，不写入节点累计。
+- 旧加密 state 缺少 nodeTrafficStats 时安全迁移；统计仅保存有效节点；节点删除清理孤儿数据；10 秒批量写盘及退出 flush。
+- 节点表所有指标排序稳定、缺失/超时/N/A 始终置底，且不改变选中/活动/勾选。
+- 全局普通文本与 `small` 至少 14px；侧栏版本标签与辅助文字相同字号/常规字重/低对比度；窄窗口、节点列表滚动不回归。
+- 在固定 sing-box 1.14.4 上增加启用 Clash API 的 Proxy 与 TUN 核心配置检查；不升级内核、不增加 npm 依赖。
+
+真实 Windows 10/11 验收需包含：本地代理实时上/下行速度与分开累计、断开 final/reconnect reset、多个节点累计不串账、重启持久化、TUN 直连与代理流量、API 失效状态、节点删除、字号与缩放布局。CI 不替代实机验收。
+
 # SSTap Next 0.3.14 — 测试计划与验证边界
 
 ## 当前版本与 CI 范围
