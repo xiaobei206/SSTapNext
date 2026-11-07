@@ -108,3 +108,9 @@
 - 修正设计：继续无条件拒绝根级 `endpoints`；Clash API 只允许 `external_controller` 和 `secret` 两个字段；控制地址必须严格匹配 `127.0.0.1:<1..65535>`；密钥必须为 64 位十六进制字符；禁止外部 UI、额外字段或任何非 loopback 地址。保留现有 cache_file、TUN interface、路由、DNS、路径哈希以及网卡清理所有安全校验。
 - 验收：构建 .NET 10 Agent；验证无 clash_api 的旧配置继续通过、带合法 loopback+secret 配置通过、0.0.0.0 / LAN / IPv6 / 无效端口 / 短密钥 / 额外字段被拒绝；再跑实际 sing-box 配置矩阵和完整 Windows build。
 - 代码修改前记录；此错误不应通过删除整个 Agent 检查来规避。
+
+## 8. TUN Agent 白名单修复与版本发布
+
+- 已在 main 发现并修复 Agent 拒绝 `experimental.clash_api` 的不兼容：根级 `endpoints` 继续禁止，TUN Clash API 只允许 `127.0.0.1:<valid port>` + 64 位 hex secret，且只接受 `external_controller` 和 `secret` 两字段；其他 external controller 形态仍 fail-closed。
+- v0.3.15 Release 已存在且不应覆盖。此次修复版本目标提升到 **0.3.16**，完整发布计划写入 `docs/RELEASE-0.3.16.md`。
+- main 提交 `8efe77ab7d309057a1c8d071a2f2b52610979ab1` 的 Windows Actions 显示 success 但锁校验/构建/安装包校验步骤被 skip（因为 v0.3.15 已存在），故不能当成本修复的安装包验证证据。0.3.16 必须走新版本完整构建与 Release 资产核验。
