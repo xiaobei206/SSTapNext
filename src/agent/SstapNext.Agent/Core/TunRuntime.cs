@@ -1,4 +1,5 @@
-﻿using System.Net.NetworkInformation;
+﻿using System.Diagnostics;
+using System.Net.NetworkInformation;
 using System.Text;
 using System.Text.Json;
 
@@ -45,72 +46,133 @@ internal static class TunRuntime
 
     public static int InspectAdapter(string[] args)
     {
-        if (args.Length != 2 || !StringComparer.Ordinal.Equals(args[0], "--id")
-            || !Guid.TryParse(args[1], out var requestedId))
+        if (args.Length != 4 || !StringComparer.Ordinal.Equals(args[0], "--id")
+            || !Guid.TryParse(args[1], out var requestedId)
+            || !StringComparer.Ordinal.Equals(args[2], "--pid")
+            || !int.TryParse(args[3], out var requestedPid) || requestedPid <= 0)
         {
-            Console.WriteLine(JsonSerializer.Serialize(new { found = false, error = "用法：--tun-inspect-adapter --id <GUID>" }));
+            Console.WriteLine(JsonSerializer.Serialize(new { found = false, inspectionComplete = false, error = "用法：--tun-inspect-adapter --id <GUID> --pid <PID>" }));
             return 11;
         }
 
         try
         {
-            var matches = NetworkInterface.GetAllNetworkInterfaces()
+            var adapters = NetworkInterface.GetAllNetworkInterfaces();
+            var matches = adapters
                 .Where(adapter => Guid.TryParse(adapter.Id, out var adapterId) && adapterId == requestedId)
                 .ToArray();
+            var relatedAdapters = adapters
+                .Where(adapter =>
+                    StringComparer.OrdinalIgnoreCase.Equals(adapter.Name, ExpectedInterfaceName)
+                    || adapter.Description.StartsWith(ExpectedTunDescriptionPrefix, StringComparison.OrdinalIgnoreCase))
+                .Select(InspectNetworkInterface)
+                .ToArray();
+            var process = InspectProcess(requestedPid);
+
             if (matches.Length != 1)
             {
                 Console.WriteLine(JsonSerializer.Serialize(new
                 {
                     found = false,
+                    inspectionComplete = true,
                     ambiguous = matches.Length > 1,
                     matchCount = matches.Length,
-                    requestedId = requestedId.ToString("B")
+                    requestedId = requestedId.ToString("B"),
+                    relatedAdapters,
+                    processId = requestedPid,
+                    processCheckComplete = process.CheckComplete,
+                    singBoxProcessRunning = process.SingBoxRunning,
+                    processName = process.ProcessName
                 }, new JsonSerializerOptions(JsonSerializerDefaults.Web)));
                 return 0;
             }
 
-            var adapter = matches[0];
-            string[] addresses;
-            try
-            {
-                addresses = adapter.GetIPProperties().UnicastAddresses
-                    .Select(item => item.Address?.ToString() ?? string.Empty)
-                    .Where(item => item.Length > 0)
-                    .ToArray();
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine(JsonSerializer.Serialize(new
-                {
-                    found = true,
-                    inspectionError = $"{ex.GetType().Name}: {ex.Message}",
-                    name = adapter.Name,
-                    description = adapter.Description,
-                    id = adapter.Id,
-                    status = adapter.OperationalStatus.ToString()
-                }, new JsonSerializerOptions(JsonSerializerDefaults.Web)));
-                return 0;
-            }
-
-            var hasExpectedAddress = addresses.Contains(ExpectedTunAddress, StringComparer.OrdinalIgnoreCase);
+            var adapter = InspectNetworkInterface(matches[0]);
             Console.WriteLine(JsonSerializer.Serialize(new
             {
                 found = true,
+                inspectionComplete = true,
+                matchCount = 1,
                 name = adapter.Name,
                 description = adapter.Description,
                 id = adapter.Id,
-                status = adapter.OperationalStatus.ToString(),
-                type = (int)adapter.NetworkInterfaceType,
-                addresses,
+                status = adapter.Status,
+                addresses = adapter.Addresses,
+                inspectionError = adapter.InspectionError,
+                relatedAdapters,
+                processId = requestedPid,
+                processCheckComplete = process.CheckComplete,
+                singBoxProcessRunning = process.SingBoxRunning,
+                processName = process.ProcessName,
                 expectedTunAddress = ExpectedTunAddress,
-                operationallyActive = adapter.OperationalStatus == OperationalStatus.Up || hasExpectedAddress
+                operationallyActive = adapter.OperationallyActive
             }, new JsonSerializerOptions(JsonSerializerDefaults.Web)));
             return 0;
         }
         catch (Exception ex)
         {
-            Console.WriteLine(JsonSerializer.Serialize(new { found = false, error = $"{ex.GetType().Name}: {ex.Message}" }));
+            Console.WriteLine(JsonSerializer.Serialize(new
+            {
+                found = false,
+                inspectionComplete = false,
+                error = ex.GetType().Name + ": " + ex.Message
+            }));
             return 1;
+        }
+    }
+
+    private sealed record AdapterInspection(
+        string Name, string Description, string Id, string Status, string[] Addresses,
+        bool OperationallyActive, string? InspectionError);
+
+    private sealed record ProcessInspection(bool CheckComplete, bool SingBoxRunning, string? ProcessName);
+
+    private static AdapterInspection InspectNetworkInterface(NetworkInterface adapter)
+    {
+        string[] addresses;
+        string? inspectionError = null;
+        try
+        {
+            addresses = adapter.GetIPProperties().UnicastAddresses
+                .Select(item => item.Address?.ToString() ?? string.Empty)
+                .Where(item => item.Length > 0)
+                .ToArray();
+        }
+        catch (Exception ex)
+        {
+            addresses = [];
+            inspectionError = ex.GetType().Name + ": " + ex.Message;
+        }
+
+        var hasExpectedAddress = addresses.Contains(ExpectedTunAddress, StringComparer.OrdinalIgnoreCase);
+        return new AdapterInspection(
+            adapter.Name, adapter.Description, adapter.Id, adapter.OperationalStatus.ToString(),
+            addresses, adapter.OperationalStatus == OperationalStatus.Up || hasExpectedAddress,
+            inspectionError);
+    }
+
+    private static ProcessInspection InspectProcess(int processId)
+    {
+        try
+        {
+            using var process = Process.GetProcessById(processId);
+            if (process.HasExited) return new ProcessInspection(true, false, null);
+            var processName = process.ProcessName;
+            return new ProcessInspection(true,
+                StringComparer.OrdinalIgnoreCase.Equals(processName, "sing-box"), processName);
+        }
+        catch (ArgumentException)
+        {
+            return new ProcessInspection(true, false, null);
+        }
+        catch (InvalidOperationException)
+        {
+            return new ProcessInspection(true, false, null);
+        }
+        catch
+        {
+            // Unreadable process state must never be treated as proof of absence.
+            return new ProcessInspection(false, true, null);
         }
     }
 
