@@ -271,3 +271,56 @@
 - 0.3.12 用户 Windows 10/11 实机验收仍未见证据：规则库实际下载/更新、代理/直连路由、bypass-cn 重叠 CIDR 优先级、更新失败保留旧 current pointer、TUN/规则更新互斥、节点公网出口、DNS、UDP/QUIC、至少 10 轮 TUN 清理。
 - 详见 `docs/WINDOWS-ACCEPTANCE.md`；CI 通过不代表实机通过。
 - 下一对话第一步：读取 START HERE NEXT GPT.md，刷新 main 当前 HEAD 和相应 Actions，然后继续 P0 Windows 实机验收或根据用户最新目标处理。
+
+## 2026-11-07 — 0.3.13 批量节点检测/测速需求与文档先行设计
+
+### 用户确认的需求
+
+- 节点管理列表直接显示各节点的 PING、TCPING、真实代理延迟、下载速度，不必去单独测速页面查看。
+- 一键全部节点检测，也支持仅检测选中节点；逐节点更新结果；可随时取消。
+- 批量并发节点数可选 1 / 2 / 4 / 8 / 16 / 32。
+- 用户网络为 500 Mbps，常用测速文件 10 MB；多节点可以同时跑，不必逐个等待。
+- 当前单节点测速启动阶段看起来像“生成系统代理”，用户认为慢，希望参考 v2rayN 的便利体验。
+
+### 当前源码事实（本轮重新读取 main）
+
+- Renderer runSelectedSpeedTest() 仅传一个 selectedNodeId，当前不支持批量测速。
+- Electron IPC sstap:speed-test 调用 CoreController.connect(node) 建立临时单节点 sing-box 会话（除非已连接同节点），然后调用 downloadSpeedTest() 通过 127.0.0.1 的本地 SOCKS5 入口下载；结束时断开临时会话。
+- CoreController 会生成临时 JSON、执行 sing-box check、spawn sing-box，并轮询本地 SOCKS5 握手端口（等待窗口最多 15 秒），这才是启动测速前的额外耗时。
+- 重要纠正：现有 src/shared/singbox-config.cjs 的 mixed inbound 明确 set_system_proxy:false，listen=127.0.0.1。当前测速并没有切换 Windows 系统代理；它启动的是应用内部测速用的本地 SOCKS5 核心。
+- 当前 speedTestThreads 仅为单个节点下载 HTTP Range 分段 worker 数，允许 1/2/4/8；不是并发节点数。
+- 单例 CoreController 只允许一条活动节点连接；测速另有 TUN unsafe 状态拒绝检查。不能用反复 connect/disconnect 单例来做多节点批测，也不得中断用户实际活动连接。
+
+### v2rayN 当前源码参考
+
+- 仓库文件：2dust/v2rayN / ServiceLib/Services/SpeedtestService.cs。
+- RunTcpingAsync：对节点地址/端口直接并发 TCP connect，属于 TCPING，不需要通过节点代理。
+- RunMixedTestAsync：MixedConcurrencyCount 控制同时测试的节点数；每个 node task 创建独立临时测试核心/本地 SOCKS，执行真实代理延迟和下载，finally 停止该测试核心。
+- RunRealPingAsync 可将一批节点放在一个测试核心配置中并发请求。
+- 在线核对引用：`https://github.com/2dust/v2rayN/blob/master/v2rayN/ServiceLib/Services/SpeedtestService.cs`。
+- 本轮不是简单复制 v2rayN；重点借鉴批量调度、节点结果即时回填、专用测试核心隔离、取消生命周期；32 并发必须有界并做资源压力验证。
+
+### 文档先行提交
+
+- 新增 `docs/CONCURRENT-NODE-TESTING.md`：记录完整目标 UI、三类指标定义、并发参数语义、当前测速链路与慢点、v2rayN 源码参考、隔离/安全要求、技术方案和自动化/Windows 验收清单。
+- 更新 `START HERE NEXT GPT.md`：将 0.3.13 批量节点检测列为下一版 P1 队列，并明确本功能尚未开始写代码。
+- 更新 `HANDOVER.md`：补充当前测速原因、set_system_proxy:false 的核验结论、v2rayN 参考和 0.3.13 安全约束。
+- 更新 `docs/TEST-PLAN.md`：新增批量节点检测自动化与实机验证要求。
+- 本轮只修改文档，**未修改任何运行时代码，未升级版本号，未创建 v0.3.13 Release**。
+
+### 实现阶段必须保持的设计
+
+1. 1/2/4/8/16/32 表示“同时测速节点数”，与每个节点下载文件时的 Range 分段数明确区分。
+2. PING=ICMP；TCPING=原始 TCP connect；真实代理延迟=经节点协议连接后发 HTTP 请求；下载测速=10 MB Range download。不能混用/互相替代。
+3. Hysteria2 是 UDP/QUIC，TCPING 显示不适用。
+4. 节点页直接显示四种结果与最后测试时间；支持全部/选中节点、实时进度与取消。
+5. 新建专用 batch runner / 有界 worker pool，不使用主 CoreController 来回切节点；不自动修改 Windows 系统代理；不切换或断开用户正在使用的节点。
+6. 测试核心 loopback-only 且 set_system_proxy:false；进程、临时配置、端口可归属、可取消、可清理。
+7. TUN 安全锁和 cleanup_error fail-closed 保护保持不变。
+8. 用户 500 Mbps 共享出口多节点并测会争用同一带宽；记录每节点 bytes/elapsed/threads/结果时间，UI 可说明并发测量结果为共享带宽状态。
+
+### 下一步
+
+- 实施前重新读 START HERE NEXT GPT.md 与 docs/CONCURRENT-NODE-TESTING.md。
+- 正式代码迭代版本升至 0.3.13，先同步所有版本字段、发布说明，再逐步实现 runner、IPC、Renderer 节点列表和测试。
+- 在 Windows runner 与用户机器上实测 1/2/4/8/16/32 并发资源、系统代理保持不变、活动连接隔离与取消清理。
