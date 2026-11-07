@@ -21,6 +21,7 @@ const FETCH_TIMEOUT_MS = 20_000;
 const USER_AGENT = `SSTapNext/${APP_VERSION}`;
 const NODE_TYPES = new Set(['vless', 'hysteria2', 'shadowsocks', 'vmess', 'trojan']);
 const MAX_NODE_TEST_RESULTS = 512;
+const TRAFFIC_PERSIST_INTERVAL_MS = 10_000;
 const DEFAULT_SPEED_TEST_URL = 'https://fsn1-speed.hetzner.com/1GB.bin';
 const LEGACY_CLOUDFLARE_SPEED_URL = 'https://speed.cloudflare.com/__down?bytes=100000000';
 const SPEED_TEST_FALLBACK_URLS = [
@@ -42,6 +43,8 @@ let speedTestAbortController = null;
 let batchNodeTester;
 let quitAfterCoreStop = false;
 let appIsQuitting = false;
+let trafficPersistTimer = null;
+let trafficDirty = false;
 
 function serializeMutation(operation) {
   const result = mutationQueue.catch(() => {}).then(async () => {
@@ -49,8 +52,20 @@ function serializeMutation(operation) {
     try {
       return await operation();
     } catch (error) {
-      // A failed disk write or validation must not leave uncommitted state in memory.
+      // A failed operation rolls back its own state changes, but must not discard
+      // monotonic traffic counters received while its async work was in progress.
+      const latestTraffic = stateCache?.nodeTrafficStats;
       stateCache = snapshot;
+      if (latestTraffic && typeof latestTraffic === 'object') {
+        for (const [nodeId, latest] of Object.entries(latestTraffic)) {
+          const previous = stateCache.nodeTrafficStats?.[nodeId] || { uploadBytes: 0, downloadBytes: 0, updatedAt: '' };
+          stateCache.nodeTrafficStats[nodeId] = {
+            uploadBytes: Math.max(previous.uploadBytes || 0, latest?.uploadBytes || 0),
+            downloadBytes: Math.max(previous.downloadBytes || 0, latest?.downloadBytes || 0),
+            updatedAt: String(latest?.updatedAt || previous.updatedAt || ''),
+          };
+        }
+      }
       throw error;
     }
   });
@@ -65,6 +80,7 @@ function defaultState() {
     subscriptions: [],
     speedResults: [],
     nodeTestResults: {},
+    nodeTrafficStats: {},
     settings: {
       mode: 'global',
       speedTestUrl: DEFAULT_SPEED_TEST_URL,
@@ -132,9 +148,15 @@ function validateState(value) {
   const nodes = Array.isArray(value.nodes) ? value.nodes.filter(isNodeRecord) : [];
   const nodeIds = new Set(nodes.map((node) => node.id));
   const nodeTestResults = {};
+  const nodeTrafficStats = {};
   if (value.nodeTestResults && typeof value.nodeTestResults === 'object' && !Array.isArray(value.nodeTestResults)) {
     for (const [nodeId, result] of Object.entries(value.nodeTestResults).slice(-MAX_NODE_TEST_RESULTS)) {
       if (nodeIds.has(nodeId) && isNodeTestResult(result)) nodeTestResults[nodeId] = result;
+    }
+  }
+  if (value.nodeTrafficStats && typeof value.nodeTrafficStats === 'object' && !Array.isArray(value.nodeTrafficStats)) {
+    for (const [nodeId, stat] of Object.entries(value.nodeTrafficStats).slice(-MAX_NODE_TEST_RESULTS)) {
+      if (nodeIds.has(nodeId) && isNodeTrafficStat(stat)) nodeTrafficStats[nodeId] = stat;
     }
   }
   const refreshHours = Number.isFinite(settings.autoRefreshHours) ? Math.min(Math.max(Math.floor(settings.autoRefreshHours), 1), 168) : 12;
@@ -147,12 +169,20 @@ function validateState(value) {
     schemaVersion: 1,
     nodes,
     nodeTestResults,
+    nodeTrafficStats,
     subscriptions: Array.isArray(value.subscriptions) ? value.subscriptions.filter(isSubscriptionRecord) : [],
     speedResults: Array.isArray(value.speedResults) ? value.speedResults.filter(isSpeedResult).slice(0, 50) : [],
     settings: { mode, speedTestUrl: url, speedTestBytes: bytes, speedTestThreads: threads, batchTestConcurrency, dnsStrategy, autoRefreshHours: refreshHours, customRulesText, enabledRuleIds },
     updatedAt: typeof value.updatedAt === 'string' ? value.updatedAt : new Date().toISOString(),
     ...(typeof value.recoveryNotice === 'string' ? { recoveryNotice: value.recoveryNotice } : {}),
   };
+}
+
+function isNodeTrafficStat(value) {
+  return Boolean(value && typeof value === 'object'
+    && Number.isSafeInteger(value.uploadBytes) && value.uploadBytes >= 0
+    && Number.isSafeInteger(value.downloadBytes) && value.downloadBytes >= 0
+    && typeof value.updatedAt === 'string');
 }
 
 function isNodeRecord(item) {
@@ -247,6 +277,7 @@ function getTunController() {
       onEvent: (status) => {
         if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('sstap:tun-event', status);
       },
+      onTraffic: handleTrafficSample,
     });
   }
   return tunController;
@@ -264,6 +295,7 @@ function getCoreController() {
       onEvent: (status) => {
         if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('sstap:core-event', status);
       },
+      onTraffic: handleTrafficSample,
     });
   }
   return coreController;
@@ -308,6 +340,8 @@ async function persistState() {
       const retainedIds = new Set(state.nodes.map((node) => node.id));
       const retainedResults = Object.entries(state.nodeTestResults || {}).filter(([nodeId]) => retainedIds.has(nodeId)).slice(-MAX_NODE_TEST_RESULTS);
       state.nodeTestResults = Object.fromEntries(retainedResults);
+      const retainedTraffic = Object.entries(state.nodeTrafficStats || {}).filter(([nodeId, stat]) => retainedIds.has(nodeId) && isNodeTrafficStat(stat)).slice(-MAX_NODE_TEST_RESULTS);
+      state.nodeTrafficStats = Object.fromEntries(retainedTraffic);
     }
     const payload = safeStorage.encryptString(JSON.stringify({ ...state, updatedAt: new Date().toISOString() })).toString('base64');
     const envelope = JSON.stringify({ schemaVersion: 1, payload });
@@ -317,11 +351,75 @@ async function persistState() {
     try {
       await fs.writeFile(temp, envelope, { encoding: 'utf8', mode: 0o600 });
       await fs.rename(temp, file);
+      trafficDirty = false;
+      if (trafficPersistTimer) clearTimeout(trafficPersistTimer);
+      trafficPersistTimer = null;
     } finally {
       try { await fs.unlink(temp); } catch (error) { if (error.code !== 'ENOENT') throw error; }
     }
   });
   return saveQueue;
+}
+
+function scheduleTrafficPersist(immediate = false) {
+  if (!trafficDirty) return Promise.resolve();
+  if (immediate) {
+    if (trafficPersistTimer) clearTimeout(trafficPersistTimer);
+    trafficPersistTimer = null;
+    return persistState().catch((error) => {
+      console.error('[SSTap Next] 节点流量统计持久化失败：', error);
+    });
+  }
+  if (!trafficPersistTimer) {
+    trafficPersistTimer = setTimeout(() => {
+      trafficPersistTimer = null;
+      void persistState().catch((error) => {
+        console.error('[SSTap Next] 节点流量统计批量写入失败：', error);
+        if (trafficDirty) scheduleTrafficPersist(false);
+      });
+    }, TRAFFIC_PERSIST_INTERVAL_MS);
+    trafficPersistTimer.unref?.();
+  }
+  return Promise.resolve();
+}
+
+async function flushTrafficStats() {
+  if (trafficPersistTimer) clearTimeout(trafficPersistTimer);
+  trafficPersistTimer = null;
+  if (!trafficDirty) return;
+  try { await persistState(); }
+  catch (error) { console.error('[SSTap Next] 退出前节点流量统计写入失败：', error); }
+}
+
+function handleTrafficSample(sample) {
+  if (!sample || typeof sample !== 'object') return;
+  try {
+    if (sample.mode === 'proxy' && typeof sample.nodeId === 'string' && stateCache
+      && stateCache.nodes.some((node) => node.id === sample.nodeId)) {
+      const uploadDelta = Number(sample.deltaUploadBytes);
+      const downloadDelta = Number(sample.deltaDownloadBytes);
+      if (Number.isSafeInteger(uploadDelta) && uploadDelta > 0
+        || Number.isSafeInteger(downloadDelta) && downloadDelta > 0) {
+        const current = stateCache.nodeTrafficStats[sample.nodeId]
+          || { uploadBytes: 0, downloadBytes: 0, updatedAt: '' };
+        const nextUpload = current.uploadBytes + (Number.isSafeInteger(uploadDelta) && uploadDelta > 0 ? uploadDelta : 0);
+        const nextDownload = current.downloadBytes + (Number.isSafeInteger(downloadDelta) && downloadDelta > 0 ? downloadDelta : 0);
+        if (Number.isSafeInteger(nextUpload) && Number.isSafeInteger(nextDownload)) {
+          stateCache.nodeTrafficStats[sample.nodeId] = {
+            uploadBytes: nextUpload,
+            downloadBytes: nextDownload,
+            updatedAt: typeof sample.sampledAt === 'string' ? sample.sampledAt : new Date().toISOString(),
+          };
+          trafficDirty = true;
+          void scheduleTrafficPersist(false);
+        }
+      }
+    }
+    if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('sstap:traffic-event', sample);
+    if (sample.final === true) void scheduleTrafficPersist(true);
+  } catch (error) {
+    console.error('[SSTap Next] 处理流量统计事件失败：', error);
+  }
 }
 
 function parseBoundedText(raw) {
@@ -848,7 +946,7 @@ app.on('before-quit', (event) => {
   const tunStatus = tunController?.getStatus();
   const localNeedsStop = localStatus && ['connected', 'starting', 'stopping'].includes(localStatus.status);
   const tunNeedsStop = tunStatus && !['disconnected', 'stopped', 'stopped_with_warning'].includes(tunStatus.status);
-  if (localNeedsStop || tunNeedsStop || batchNeedsStop) {
+  if (localNeedsStop || tunNeedsStop || batchNeedsStop || trafficDirty || trafficPersistTimer) {
     event.preventDefault();
     quitAfterCoreStop = true;
     Promise.allSettled([
@@ -857,7 +955,10 @@ app.on('before-quit', (event) => {
       batchNeedsStop ? getBatchNodeTester().cancel() : Promise.resolve(),
     ]).then((results) => {
       for (const result of results) if (result.status === 'rejected') console.error('[SSTap Next] 网络会话退出清理失败：', result.reason);
-    }).finally(() => app.quit());
+    }).finally(async () => {
+      await flushTrafficStats();
+      app.quit();
+    });
   }
 });
 
