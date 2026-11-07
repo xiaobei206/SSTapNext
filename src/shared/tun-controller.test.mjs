@@ -191,7 +191,7 @@ test('recovers an inactive Wintun object using exact-GUID live inspection', asyn
   assert.equal(started.status, 'running');
   assert.equal(inspectedId, adapterId);
   const existingFiles = await fs.readdir(staleDirectory);
-  assert.ok(existingFiles.includes('.verified-inactive-adapter-recovered-0.3.10'));
+  assert.ok(existingFiles.includes('.verified-inactive-adapter-recovered-0.3.11'));
   assert.ok(existingFiles.includes('status.cleanup_error-legacy.json'));
   assert.ok(existingFiles.includes('status.json'));
   assert.equal(existingFiles.includes('session.json'), false, 'the stale session lock metadata must be retired');
@@ -201,15 +201,20 @@ test('recovers an inactive Wintun object using exact-GUID live inspection', asyn
   await controller.disconnect();
 });
 
-test('retires an old cleanup_error only after two complete inspectors confirm the adapter and sing-box process are absent', async (t) => {
+test('recovers a missing historical GUID when related SSTap/sing-tun objects are all NotPresent and unaddressed', async (t) => {
   const adapterId = '{8AC250D2-5056-026B-1DA1-96E3759C87AB}';
   let inspected = null;
   const { root, fake, controller } = await makeController({
     inspectAdapter: async (id, pid) => {
       inspected = { id, pid };
       return {
-        found: false, absent: true, inspectionComplete: true, matchCount: 0, relatedAdapters: [],
-        processId: 24372, processCheckComplete: true, singBoxProcessRunning: false,
+        found: false, absent: true, inspectionComplete: true, matchCount: 0,
+        relatedAdapters: [
+          { name: 'singbox_tun', description: 'sing-tun Tunnel', id: '{B738A021-9842-444C-10B0-A4E3F65AB5B6}', status: 'NotPresent', addresses: [], operationallyActive: false, inspectionError: null },
+          { name: 'SSTap Next Test', description: 'sing-tun Tunnel #2', id: '{A5BF671B-9F50-B1F2-2EB1-6A40815D5AC5}', status: 'NotPresent', addresses: [], operationallyActive: false, inspectionError: null },
+          { name: 'SSTap FullDiag', description: 'sing-tun Tunnel #4', id: '{A966B662-F331-7ACE-2FC4-597F37BF13CD}', status: 'NotPresent', addresses: [], operationallyActive: false, inspectionError: null },
+        ],
+        processId: 24372, processCheckComplete: true, singBoxProcessRunning: false, processName: null,
         id: adapterId, expectedTunAddress: '172.19.0.1', operationallyActive: false,
         verificationSources: ['PowerShell Get-NetAdapter -IncludeHidden', '.NET NetworkInterface.GetAllNetworkInterfaces'],
       };
@@ -234,7 +239,7 @@ test('retires an old cleanup_error only after two complete inspectors confirm th
   assert.equal(started.status, 'running');
   assert.deepEqual(inspected, { id: adapterId, pid: 24372 });
   const files = await fs.readdir(staleDirectory);
-  assert.ok(files.includes('.verified-absent-adapter-recovered-0.3.10'));
+  assert.ok(files.includes('.verified-absent-adapter-recovered-0.3.11'));
   assert.ok(files.includes('status.cleanup_error-legacy.json'));
   assert.equal(files.includes('session.json'), false);
   assert.equal(await fs.readFile(path.join(staleDirectory, 'sing-box.log'), 'utf8'), 'preserve-logs');
