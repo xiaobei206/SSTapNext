@@ -32,6 +32,8 @@ test('downloads, converts, atomically installs and selects SSTap legacy rules', 
   assert.equal(selected.length, 2);
   assert.ok(selected.some((x) => x.fileName === 'BypassCNandLan.rules'));
   assert.ok(selected.some((x) => x.fileName === 'Game-0.rules'));
+  assert.equal(selected[0].fileName, 'Game-0.rules', 'explicit game rules must be evaluated before the broad automatic CN bypass');
+  assert.equal(selected[1].fileName, 'BypassCNandLan.rules', 'automatic CN bypass must remain the final imported SSTap rule');
   const parsed = JSON.parse(await fs.readFile(selected.find((x) => x.fileName === 'Game-0.rules').path, 'utf8'));
   assert.deepEqual(parsed.rules[0].ip_cidr, ['20.0.0.0/8']);
   const unchanged = await updateSstapRuleLibrary(root, { sourceCommit: { sha }, archiveBuffer: Buffer.from('ignored') });
