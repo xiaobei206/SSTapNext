@@ -91,6 +91,6 @@
 .node-test-value small{font-size:14px;color:#738ba9}
 .node-test-value b{font-size:14px;color:#b7cbe4;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .node-test-time b{font-size:14px;color:#91a4be}
-.batch-node-row .node-source{font-size:13px;display:none}
+.batch-node-row .node-source{font-size:14px;display:none}
 .batch-node-row .icon-button{justify-self:center}
 @media(max-width:1120px){.batch-actions{margin-left:0}.batch-node-list{padding-bottom:4px}}

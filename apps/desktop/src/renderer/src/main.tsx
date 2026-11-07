@@ -204,6 +204,11 @@ function App() {
     setError('');
     setBatchTestProgress({ status: 'starting', total: nodeIds.length, completed: 0, failed: 0, active: 0, concurrency: Number(batchConcurrency) });
     try {
+      const savedSettings = await window.sstap.saveSettings({
+        batchTestConcurrency: Number(batchConcurrency),
+        speedTestThreads: Number(threads),
+      });
+      setState(savedSettings);
       const result = await window.sstap.startBatchNodeTest({ nodeIds, concurrency: Number(batchConcurrency) });
       const latest = await window.sstap.getState();
       setState(latest);

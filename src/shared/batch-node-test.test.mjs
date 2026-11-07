@@ -45,6 +45,21 @@ test('parses Windows ping latency and packet loss, including fully blocked ICMP'
   assert.equal(blocked.lossPercent, 100);
 });
 
+test('parses localized Chinese Windows ping output', () => {
+  const output = [
+    '正在 Ping 1.1.1.1 具有 32 字节的数据:',
+    '来自 1.1.1.1 的回复: 字节=32 时间=11ms TTL=57',
+    '来自 1.1.1.1 的回复: 字节=32 时间<1ms TTL=57',
+    '来自 1.1.1.1 的回复: 字节=32 时间=13ms TTL=57',
+    '数据包: 已发送 = 3，已接收 = 3，丢失 = 0 (0% 丢失)',
+  ].join('\n');
+  const parsed = parseIcmpOutput(output, '', 3);
+  assert.equal(parsed.status, 'ok');
+  assert.equal(parsed.received, 3);
+  assert.equal(parsed.lossPercent, 0);
+  assert.ok(parsed.averageMs > 0);
+});
+
 test('runs ICMP ping with an argument array and parses the process output', async () => {
   const spawnCalls = [];
   const spawnImpl = (executable, args) => {

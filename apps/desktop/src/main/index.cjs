@@ -304,6 +304,11 @@ async function persistState() {
     if (!safeStorage.isEncryptionAvailable()) {
       throw new Error('Windows 安全存储不可用；为保护节点密码，本程序不会降级为明文保存。');
     }
+    if (Array.isArray(state.nodes)) {
+      const retainedIds = new Set(state.nodes.map((node) => node.id));
+      const retainedResults = Object.entries(state.nodeTestResults || {}).filter(([nodeId]) => retainedIds.has(nodeId)).slice(-MAX_NODE_TEST_RESULTS);
+      state.nodeTestResults = Object.fromEntries(retainedResults);
+    }
     const payload = safeStorage.encryptString(JSON.stringify({ ...state, updatedAt: new Date().toISOString() })).toString('base64');
     const envelope = JSON.stringify({ schemaVersion: 1, payload });
     const file = statePath();

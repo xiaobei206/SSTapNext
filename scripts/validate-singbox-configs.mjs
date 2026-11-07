@@ -10,6 +10,7 @@ import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
 const { parseShareText } = require('../src/shared/node-parser.cjs');
 const { buildTunConfig } = require('../src/shared/tun-config.cjs');
+const { buildBatchProxyConfig } = require('../src/shared/singbox-config.cjs');
 
 function argValue(name) {
   const index = process.argv.indexOf(name);
@@ -152,11 +153,42 @@ async function main() {
       passed++;
       console.log('[PASS] SSTap legacy local source rule sets (proxy/direct, before China GEO)');
     }
+    
+    // Validate the isolated multi-node test configuration with the actual sing-box
+    // executable. Each local mixed inbound is bound to its own outbound by route.
+    const batchDir = path.join(work, 'batch-node-test');
+    await fsp.mkdir(batchDir, { recursive: true });
+    const batchConfig = buildBatchProxyConfig([
+      { node: nodes[0][1], listenPort: 25101 },
+      { node: nodes[1][1], listenPort: 25102 },
+    ]);
+    if (batchConfig.inbounds.length !== 2
+      || batchConfig.outbounds.length !== 3
+      || batchConfig.route.rules.length !== 2
+      || batchConfig.route.final !== 'block'
+      || !batchConfig.inbounds.every((inbound) => inbound.type === 'mixed' && inbound.listen === '127.0.0.1' && inbound.set_system_proxy === false)
+      || batchConfig.route.rules.some((rule, index) => rule.inbound?.[0] !== batchConfig.inbounds[index].tag || rule.outbound !== batchConfig.outbounds[index].tag)) {
+      throw new Error('batch test route isolation or loopback-only invariant failed');
+    }
+    const batchConfigPath = path.join(batchDir, 'config.json');
+    await fsp.writeFile(batchConfigPath, JSON.stringify(batchConfig, null, 2), 'utf8');
+    const batchChecked = spawnSync(core, ['check', '-c', batchConfigPath], {
+      encoding: 'utf8', timeout: 30000, windowsHide: true,
+    });
+    if (batchChecked.error || batchChecked.status !== 0) {
+      const detail = [batchChecked.error?.message, batchChecked.stderr, batchChecked.stdout].filter(Boolean).join('\n').trim();
+      failures.push({ caseName: 'Concurrent node-test loopback inbounds and outbound pinning', detail: detail || `exit=${batchChecked.status}` });
+      console.error('[FAIL] Concurrent node-test loopback inbounds and outbound pinning');
+      if (detail) console.error(detail);
+    } else {
+      passed++;
+      console.log('[PASS] Concurrent node-test loopback inbounds and outbound pinning');
+    }
   } finally {
     await fsp.rm(work, { recursive: true, force: true });
   }
 
-  const expected = modes.length * dnsStrategies.length * fixtures.length + 1;
+  const expected = modes.length * dnsStrategies.length * fixtures.length + 2;
   console.log(`\n配置校验：${passed}/${expected} 通过`);
   if (failures.length) {
     console.error(`失败项：${failures.map((item) => item.caseName).join('；')}`);

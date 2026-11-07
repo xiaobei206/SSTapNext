@@ -271,7 +271,7 @@ class BatchNodeTester {
     }
     const concurrency = Number(options.concurrency || 4);
     const requestedThreads = Number(options.downloadThreads || 1);
-    const threads = effectiveDownloadThreads(requestedThreads, concurrency);
+    if (!ALLOWED_DOWNLOAD_THREADS.includes(requestedThreads)) throw new Error('单节点下载线程只允许 1、2、4、8、16 或 32');
     const totalBytes = Number(options.totalBytes);
     if (!Number.isSafeInteger(totalBytes) || totalBytes < 1_000_000 || totalBytes > 1_000_000_000) {
       throw new Error('测速下载量必须在 1 MB 至 1 GB 之间。');
@@ -289,8 +289,10 @@ class BatchNodeTester {
       unique.push(structuredClone(node));
     }
     if (unique.length === 0) throw new Error('没有可检测的节点。');
+    const effectiveConcurrency = Math.min(concurrency, Math.min(MAX_BATCH_NODES, unique.length));
+    const threads = effectiveDownloadThreads(requestedThreads, effectiveConcurrency);
     const batchId = crypto.randomUUID();
-    const summary = { status: 'starting', batchId, total: unique.length, completed: 0, failed: 0, active: 0, concurrency, requestedDownloadThreads: requestedThreads, effectiveDownloadThreads: threads };
+    const summary = { status: 'starting', batchId, total: unique.length, completed: 0, failed: 0, active: 0, concurrency, effectiveConcurrency, requestedDownloadThreads: requestedThreads, effectiveDownloadThreads: threads };
     this._emit(summary);
     let completed = 0;
     let failed = 0;
@@ -349,6 +351,8 @@ class BatchNodeTester {
             }
             completed++;
             if (result.status !== 'complete') failed++;
+            summary.completed = completed;
+            summary.failed = failed;
             let persistenceWarning = null;
             try { await this.onNodeResult({ nodeId: node.id, result }); }
             catch (error) { persistenceWarning = sanitizeMetricMessage('结果保存失败：' + String(error.message || error)); }
