@@ -26,7 +26,7 @@ test('0.3.7 release UI, DNS and manual core-update contracts remain present', ()
   assert.match(electronMain, /bom\.proof\.ovh\.net/);
   assert.match(electronMain, /speedtest\.tele2\.net/);
   assert.match(electronMain, /sstap:core-open-folder/);
-  assert.match(electronMain, /请先断开系统 TUN，再修改 DNS 地址族策略/);
+  assert.match(electronMain, /分流模式、自定义规则、游戏规则和 DNS 策略已锁定/);
   assert.match(build, /当前核心（\$coreVersionLine）/);
   assert.match(coreDocs, /sing-box\.exe/);
   assert.match(coreDocs, /SHA-256/);
