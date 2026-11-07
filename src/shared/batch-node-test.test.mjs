@@ -225,18 +225,19 @@ test('runs multiple nodes through one temporary sing-box batch session and persi
     onNodeResult: async (item) => saved.push(item),
   });
   const result = await tester.run(nodes, {
-    concurrency: 2,
-    downloadThreads: 8,
+    concurrency: 32,
+    downloadThreads: 32,
     url: 'https://speed.example.test/10mb.bin',
     totalBytes: 10_000_000,
   });
   assert.equal(result.status, 'completed');
   assert.equal(result.completed, 2);
   assert.equal(result.failed, 0);
+  assert.equal(result.effectiveDownloadThreads, 32, 'two actual workers may each use 32 Range connections within the 64-worker budget');
   assert.equal(configurations.length, 1);
   assert.equal(configurations[0].inbounds.length, 2);
   assert.equal(saved.length, 2);
-  assert.ok(saved.every((item) => item.result.download.averageMbps === 320));
+  assert.ok(saved.every((item) => item.result.download.averageMbps === 320 && item.result.download.threads === 32));
   assert.ok(events.some((event) => event.metric === 'node-complete'));
   assert.equal(tester.isRunning, false);
   assert.deepEqual(await readdir(path.join(root, 'runtime')), []);

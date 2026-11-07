@@ -30,7 +30,7 @@ function assertNotAborted(signal) {
 
 function parseIcmpOutput(stdout, stderr, sent = 3) {
   const output = String(stdout || '') + '\n' + String(stderr || '');
-  const times = [...output.matchAll(/time[=<]\s*(\d+(?:\.\d+)?)\s*ms/gi)].map((match) => Number(match[1]));
+  const times = [...output.matchAll(/(?:time|时间)[=<]\s*(\d+(?:\.\d+)?)\s*ms/gi)].map((match) => Number(match[1]));
   const lossMatches = [...output.matchAll(/(\d{1,3})\s*%\s*(?:loss|丢失)/gi)];
   const lossPercent = lossMatches.length
     ? Math.min(100, Number(lossMatches[lossMatches.length - 1][1]))
