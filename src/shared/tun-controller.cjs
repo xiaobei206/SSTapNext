@@ -172,6 +172,8 @@ class TunController {
     if (!this.session) return structuredClone(this.lastStatus);
     return {
       ...this.session.agentStatus,
+      sessionId: this.session.sessionId,
+      startedAt: this.session.startedAt || this.session.agentStatus.startedAt || null,
       connected: this.session.agentStatus.status === 'running',
       nodeId: this.session.node.id,
       nodeName: this.session.node.name,
