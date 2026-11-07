@@ -100,6 +100,7 @@ declare global {
     elapsedSeconds?: number;
     error?: string;
     final?: boolean;
+    nodeTrafficStat?: SstapNodeTrafficStat;
   };
 
   type SstapCoreInfo = {
