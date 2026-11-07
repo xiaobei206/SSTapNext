@@ -3,16 +3,17 @@
 ## 1. 项目标识与当前状态
 
 - 项目根目录（文件库）：`/sstap/SSTapNext/`
-- 当前源码基线：**0.3.7**
-- 近期用户确认可用的功能版本：**0.3.5**（用户报告其系统级代理/YouTube 已恢复正常；没有将此结论外推为 0.3.6 已验收）
-- 当前阶段：0.3.7 已修复 Wintun 持久化 Down 接口被误判为清理残留的问题；Node 自动化 67/67、锁文件 704/704、JS 语法检查通过。Windows Agent 编译、54 份 sing-box 检查、TS/Vite、NSIS、真实 TUN 多轮断开/重连和 GitHub Release 工作流尚待 Windows/GitHub 实际执行。
-- 当前唯一可信开发入口（本地目录）：`/mnt/data/SSTapNext_0.3.7/`；由 0.3.6 已核验源码包单一派生，新增 0.3.7 TUN 清理判据修复和 GitHub Actions 发布工作流。0.3.7 的 ZIP、Manifest、整体 SHA-256 与版本交接文件由本轮归档目录提供；Windows 构建与 GitHub Release 仍待执行。
+- main 分支当前版本：**0.3.11**。
+- 当前功能开发版本：**0.3.12**，位于 `feature/sstap-rule-library-0312`，通过 PR #1 提交，尚未合并。
+- 近期用户确认真实功能可用的历史版本：**0.3.5**（用户反馈系统级代理/YouTube 已恢复正常；不可将此反馈外推为 0.3.12 的实机验收）。
+- 0.3.12 增加原版 FQrabbit SSTap `.rules` 转换、规则库在线更新、分流页面规则管理、游戏规则叠加和优先级保护。Node CI、Windows 构建均通过的结论必须以 PR 最新 HEAD 的 Actions 状态为准；TUN/Wintun 实机循环仍需用户 Windows 设备验收。
+- 当前唯一可信开发入口：GitHub 仓库 `xiaobei206/SSTapNext`；功能开发分支 `feature/sstap-rule-library-0312`。新对话先读根目录 `HANDOVER.md`，不要再从旧 0.3.7 ZIP 或文件库历史包拼接源码。
 
 ## 2. 用途与功能
 
 SSTap Next 是 Windows 代理客户端，提供节点/订阅导入、sing-box 本地 SOCKS/HTTP mixed 代理、节点测速、Windows 系统级 TUN、全局/绕过中国大陆/自定义规则分流、DNS 地址族策略和手动 sing-box 核心升级。
 
-### 已实现功能基线（以 0.3.7 源码为准；0.3.7 在 0.3.6 功能之上修复 Wintun 清理误报）
+### 已实现功能基线（main 0.3.11 + PR #1 中的 0.3.12 增量；PR 未合并前不得把 0.3.12 当作正式 main 发布）
 
 - 节点协议：VLESS、Hysteria2、Shadowsocks SIP002、VMess、Trojan，以及已实现的 TLS/Reality/WebSocket/gRPC/混淆参数边界。
 - 订阅：单节点、多节点、Base64 列表、刷新、稳定 ID、来源管理、失败原子保留旧列表。
@@ -21,7 +22,9 @@ SSTap Next 是 Windows 代理客户端，提供节点/订阅导入、sing-box �
 - 测速：通过选中节点 SOCKS5，Range/多线程/取消/历史记录，并有多个公开测速源回退。
 - 系统 TUN：独立 .NET 10 Agent 经 UAC 启动 sing-box，双栈 TUN、auto route、strict route、DNS hijack；三种分流模式。
 - DNS：默认 `ipv4_only`；用户可选 `prefer_ipv4` 或 `prefer_ipv6` 双栈策略。双栈要求本地接入网络和所选代理节点出口都支持 IPv6。
-- sing-box 核心：默认下载脚本仍锁定 1.14.4；软件读取实际核心版本；用户可以手动升级 EXE 和同包 DLL，构建时对现有核心执行 54 份配置校验。
+- sing-box 核心：默认下载脚本仍锁定 1.14.4；软件读取实际核心版本；用户可以手动升级 EXE 和同包 DLL。Windows 构建执行 54 组协议/模式/DNS 地址族配置检查，并额外检查 SSTap 本地 source 规则集配置。 
+- SSTap 规则库：按上游 commit 下载 FQrabbit/SSTap-Rule ZIP，校验 CRC/大小并转换到 sing-box local source JSON；保存于用户数据目录，版本指针原子切换，更新失败保留旧库。原规则头动作 `0=proxy`、`1=direct` 原样映射。
+- 规则叠加：全局代理、绕过中国大陆、自定义规则三种基础策略可加载用户勾选的 SSTap 规则；绕过大陆时自动加载旧版大陆规则，但所选游戏规则优先于该自动规则以及 GeoSite/GeoIP 回退。
 
 ## 3. 技术架构与模块边界
 
@@ -35,7 +38,7 @@ SSTap Next 是 Windows 代理客户端，提供节点/订阅导入、sing-box �
 | Scripts | `scripts/` | Windows构建、核心下载、Agent发布、核心配置校验、网络快照和smoke test |
 | Docs | `docs/` | 架构决策、安全边界、升级/验收说明和各版本历史发布说明 |
 
-关键数据流见 `0.3.6` 源码包内 `docs/NETWORK-ARCHITECTURE.md`、`docs/DECISIONS.md` 和 `docs/TUN-SAFETY-CHECKLIST.md`。
+关键数据流和规则转换见仓库 `HANDOVER.md`、`docs/SSTAP-RULE-CONVERSION.md`、`docs/DECISIONS.md` 和 `docs/WINDOWS-ACCEPTANCE.md`。
 
 ## 4. 运行/构建环境
 
@@ -82,30 +85,30 @@ npm.cmd run validate:core
 SSTapNext/
   PROJECT-OVERVIEW-CN.md
   PROJECT-DEVELOPMENT-LOG-CN.md
-  0.3.0/ ... 0.3.7/             # 每版本独立源码 ZIP、HANDOFF、BUILD-REPORT、MANIFEST、SHA256、Windows验收命令
+  0.3.0/ ... 0.3.12/            # 每版本独立源码 ZIP、HANDOFF、BUILD-REPORT、MANIFEST、SHA256、Windows验收命令
 ```
 
-文件库目录入口：`/sstap/SSTapNext/`；版本文件夹已存在。原有 0.1.0、0.2.0、旧 0.3.0 ZIP 和 0.3.0 旧文档已在文件库内移动至对应历史目录。新生成的 PROJECT-OVERVIEW、唯一主日志及标准版本归档是否已同步须以本次 GitHub 仓库/文件库实际检查结果为准，不得仅凭本地存在推断同步。0.1.0/0.2.0 原始 ZIP 字节无法由 Files raw materialize 读取，作为未核验历史存档，不用作基线。
+GitHub 仓库 `xiaobei206/SSTapNext` 是当前源码的事实来源。版本归档与文件库历史副本只作为历史记录，不得覆盖或拼接当前 Git 分支。0.1.0/0.2.0 原始 ZIP 仍是未核验历史存档，不用作当前基线。
 
 ## 7. 新对话接手顺序
 
 1. 读 `PROJECT-OVERVIEW-CN.md`。
 2. 读唯一主日志 `PROJECT-DEVELOPMENT-LOG-CN.md`。
-3. 读 `HANDOVER.md`（0.3.7 当前交接）。
-4. 对当前 0.3.7 ZIP 重新计算 SHA-256，核对同目录独立 SHA256 文件。
-5. 解压 0.3.7 ZIP，按 `SSTapNext-0.3.7-SOURCE-MANIFEST.sha256` 逐项核验。
-6. 根据任务读取明确列出的实际代码、测试和脚本；本交接清单不是代码内容本身。
-7. 只有基线核验通过后才允许修改代码；新版本从 0.3.7 递增，旧包不可拼接。
+3. 读 `HANDOVER.md`（0.3.12 当前交接）。
+4. 读取 PR #1 最新 HEAD、评论、CI 与 Windows Build Actions；不要假设 HEAD 和上一轮相同。
+5. 检查 `.rules` 解析器、ZIP 更新器、TUN route 顺序、Electron IPC、Renderer UI 和测试。
+6. 先在 PR 分支追加小而可验证的提交；不要把 0.3.12 代码直接写进 main。
+7. 合并前要求 PR 最新 HEAD 的 Node CI 与 Windows build 全绿；随后仍需真实 Windows TUN/Wintun 验收。
 
 ## 8. 证据等级
 
 - 归档验证、Node 单测、锁文件、语法、BOM、CSS静态计数均按本次 `BUILD-REPORT` 记载。
 - Windows build、Agent编译、sing-box真实核心check、TS/Vite、NSIS、安装启动、Wintun、节点握手、公网出口和GUI验收必须分别有用户 Windows 输出或真实环境证据。
-- 0.3.7 当前尚未收到 Windows 构建/Actions 运行结果，不能宣称它已生成安装包或已通过真实 TUN 循环验收。
+- GitHub Actions 的 Node 回归与 Windows 安装包构建可以证明自动化、Agent 编译、核心配置校验、TS/Vite、NSIS 等构建阶段通过；它们不能证明真实节点握手、系统路由/DNS、UDP/QUIC 或多轮 TUN 清理已经在用户机器上验收。具体 PR HEAD 与 Actions 运行结果以 PR #1 为准。
 
 
 ## 9. 0.3.7 清理可靠性增量
 
 Windows 可以在 sing-box 关闭后保留 Wintun 网络适配器对象。0.3.7 不再把“同名接口对象仍存在”单独视作活动残留；只有接口处于 `Up`，或仍持有本应用配置的 `172.19.0.1` TUN 地址，才视为活动资源并阻止再次接管。`Down` 且无 TUN 地址的适配器对象不被删除，视为本次 TUN 已释放。
 
-GitHub 发布流水线位于 `.github/workflows/release-windows.yml`：发布 `vX.Y.Z` Release 后，在 Windows runner 执行完整构建，并将 EXE、blockmap、SHA-256 上传到 Release。推荐新建公开仓库 `xiaobei206/SSTapNext`；当前 GitHub 连接没有创建新仓库能力，须由仓库所有者先创建空的 Public repository。
+GitHub Windows 流水线位于 `.github/workflows/windows-build.yml`：PR 触发完整 Windows 构建并上传 workflow artifact，但不发布正式 Release；main/tag 发布按版本检查后创建 Release 并上传 EXE、blockmap、SHA-256。目标公共仓库 `xiaobei206/SSTapNext` 已存在。
