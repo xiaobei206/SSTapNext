@@ -51,55 +51,91 @@ class TunController {
     this.getLauncherPath = options.getLauncherPath;
     this.spawnImpl = options.spawnImpl || spawn;
     this.powershellPath = options.powershellPath || 'powershell.exe';
-    this.inspectAdapter = options.inspectAdapter || (async (adapterId) => {
+    this.inspectAdapter = options.inspectAdapter || (async (adapterId, processId) => {
       const normalizedId = String(adapterId || '').replace(/[{}]/g, '');
-      if (!/^[0-9a-f-]{36}$/i.test(normalizedId)) {
-        throw new Error('历史网卡 GUID 格式无效，不能自动解除 TUN 清理锁。');
+      const requestedPid = Number(processId);
+      if (!/^[0-9a-f-]{36}$/i.test(normalizedId) || !Number.isSafeInteger(requestedPid) || requestedPid <= 0) {
+        throw new Error('历史网卡 GUID 或 sing-box PID 无效，不能自动解除 TUN 清理锁。');
       }
 
       const script = [
         "$ErrorActionPreference = 'Stop'",
-        `$requested = [guid]'${normalizedId}'`,
+        "[Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false)",
+        "$requested = [guid]'" + normalizedId + "'",
+        "$requestedPid = " + requestedPid,
         "try {",
-        "  $foundAdapters = @(Get-NetAdapter -IncludeHidden -ErrorAction Stop | Where-Object { try { ([guid]$_.InterfaceGuid).ToString('D') -eq $requested.ToString('D') } catch { $false } })",
-        "  if ($foundAdapters.Count -ne 1) { [ordered]@{ found = $false; matchCount = $foundAdapters.Count; inspectionError = 'Get-NetAdapter 未能唯一定位历史 GUID' } | ConvertTo-Json -Compress; exit 0 }",
+        "  $allAdapters = @(Get-NetAdapter -IncludeHidden -ErrorAction Stop)",
+        "  $foundAdapters = @($allAdapters | Where-Object { try { ([guid]$_.InterfaceGuid).ToString('D') -eq $requested.ToString('D') } catch { $false } })",
+        "  $relatedAdapters = @($allAdapters | Where-Object { ([string]$_.Name -ieq 'SSTap Next') -or ([string]$_.InterfaceDescription -like 'sing-tun Tunnel*') } | ForEach-Object { $candidate = $_; $candidateAddresses = @(Get-NetIPAddress -InterfaceIndex $candidate.ifIndex -ErrorAction SilentlyContinue | ForEach-Object { [string]$_.IPAddress } | Where-Object { $_ }); [ordered]@{ name = [string]$candidate.Name; description = [string]$candidate.InterfaceDescription; id = ([guid]$candidate.InterfaceGuid).ToString('B'); status = [string]$candidate.Status; addresses = $candidateAddresses } })",
+        "  $processCheckComplete = $true; $singBoxProcessRunning = $false; $processName = $null",
+        "  try { $targetProcess = Get-Process -Id $requestedPid -ErrorAction Stop; $processName = [string]$targetProcess.ProcessName; $singBoxProcessRunning = ($processName -ieq 'sing-box') } catch { if ($_.CategoryInfo.Category -ne 'ObjectNotFound') { $processCheckComplete = $false } }",
+        "  if ($foundAdapters.Count -ne 1) { [ordered]@{ found = $false; inspectionComplete = $true; matchCount = $foundAdapters.Count; relatedAdapters = $relatedAdapters; processId = $requestedPid; processCheckComplete = $processCheckComplete; singBoxProcessRunning = $singBoxProcessRunning; processName = $processName; inspectionError = 'Get-NetAdapter 未能唯一定位历史 GUID' } | ConvertTo-Json -Compress -Depth 6; exit 0 }",
         "  $adapter = $foundAdapters[0]",
         "  $addresses = @(Get-NetIPAddress -InterfaceIndex $adapter.ifIndex -ErrorAction SilentlyContinue | ForEach-Object { [string]$_.IPAddress } | Where-Object { $_ })",
         "  $rawStatus = [string]$adapter.Status",
         "  $status = if ($rawStatus -in @('Down','Disconnected')) { 'Down' } else { $rawStatus }",
         "  $active = ($status -eq 'Up') -or ($addresses -contains '172.19.0.1')",
-        "  [ordered]@{ found = $true; name = [string]$adapter.Name; description = [string]$adapter.InterfaceDescription; id = ([guid]$adapter.InterfaceGuid).ToString('B'); status = $status; rawStatus = $rawStatus; addresses = $addresses; expectedTunAddress = '172.19.0.1'; operationallyActive = $active } | ConvertTo-Json -Compress",
-        "} catch { [ordered]@{ found = $false; inspectionError = $_.Exception.Message } | ConvertTo-Json -Compress; exit 0 }"
+        "  [ordered]@{ found = $true; inspectionComplete = $true; matchCount = 1; name = [string]$adapter.Name; description = [string]$adapter.InterfaceDescription; id = ([guid]$adapter.InterfaceGuid).ToString('B'); status = $status; rawStatus = $rawStatus; addresses = $addresses; relatedAdapters = $relatedAdapters; processId = $requestedPid; processCheckComplete = $processCheckComplete; singBoxProcessRunning = $singBoxProcessRunning; processName = $processName; expectedTunAddress = '172.19.0.1'; operationallyActive = $active } | ConvertTo-Json -Compress -Depth 6",
+        "} catch { [ordered]@{ found = $false; inspectionComplete = $false; inspectionError = $_.Exception.Message } | ConvertTo-Json -Compress -Depth 6; exit 0 }"
       ].join('; ');
 
+      const relatedAdaptersOf = (inspection) => {
+        if (Array.isArray(inspection?.relatedAdapters)) return inspection.relatedAdapters;
+        return inspection?.relatedAdapters ? [inspection.relatedAdapters] : [];
+      };
+      const confirmsAbsent = (inspection) => inspection?.found === false
+        && inspection.inspectionComplete === true
+        && inspection.matchCount === 0
+        && relatedAdaptersOf(inspection).length === 0
+        && inspection.processCheckComplete === true
+        && inspection.singBoxProcessRunning === false;
+
+      let powershellInspection = null;
       let powershellFailure = null;
       try {
         const result = await captureProcess(this.powershellPath, [
           '-NoLogo', '-NoProfile', '-NonInteractive', '-Command', script,
         ], { spawnImpl: this.spawnImpl, timeoutMs: 12000 });
         const output = result.stdout.replace(/^\uFEFF/, '').trim().split(/\r?\n/).filter(Boolean).at(-1);
-        const inspected = JSON.parse(output || 'null');
-        if (inspected?.found === true) return inspected;
-        powershellFailure = inspected?.inspectionError || 'PowerShell 未找到该网卡';
+        powershellInspection = JSON.parse(output || 'null');
+        if (powershellInspection?.found === true
+          && powershellInspection.processCheckComplete === true
+          && powershellInspection.singBoxProcessRunning === false) return powershellInspection;
+        powershellFailure = powershellInspection?.inspectionError || JSON.stringify(powershellInspection);
       } catch (error) {
         powershellFailure = String(error.message || error);
       }
 
-      // Use the read-only .NET Agent as an independent fallback when NetAdapter
-      // cmdlets are unavailable or cannot locate the exact historical GUID.
       const agentPath = this.getAgentPath();
-      if (!agentPath) throw new Error(`PowerShell 网卡核验失败（${powershellFailure}），且无法定位备用 Agent。`);
+      if (!agentPath) throw new Error('PowerShell 核验结果：' + powershellFailure + '；无法定位备用 Agent。');
+      let agentInspection = null;
+      let agentFailure = null;
       try {
-        const result = await captureProcess(agentPath, ['--tun-inspect-adapter', '--id', `{${normalizedId}}`], {
-          spawnImpl: this.spawnImpl, timeoutMs: 10000,
-        });
+        const result = await captureProcess(agentPath, [
+          '--tun-inspect-adapter', '--id', '{' + normalizedId + '}', '--pid', String(requestedPid),
+        ], { spawnImpl: this.spawnImpl, timeoutMs: 10000 });
         const output = result.stdout.replace(/^\uFEFF/, '').trim().split(/\r?\n/).filter(Boolean).at(-1);
-        const inspected = JSON.parse(output || 'null');
-        if (inspected?.found === true) return inspected;
-        throw new Error(inspected?.error || inspected?.inspectionError || 'Agent 未找到该网卡');
+        agentInspection = JSON.parse(output || 'null');
+        if (agentInspection?.found === true
+          && agentInspection.processCheckComplete === true
+          && agentInspection.singBoxProcessRunning === false) return agentInspection;
+        agentFailure = agentInspection?.error || agentInspection?.inspectionError || JSON.stringify(agentInspection);
       } catch (error) {
-        throw new Error(`PowerShell 核验失败：${powershellFailure}；Agent 备用核验失败：${error.message || error}`);
+        agentFailure = String(error.message || error);
       }
+
+      if (confirmsAbsent(powershellInspection) && confirmsAbsent(agentInspection)) {
+        return {
+          found: false, absent: true, inspectionComplete: true, matchCount: 0, relatedAdapters: [],
+          id: '{' + normalizedId + '}', processId: requestedPid,
+          processCheckComplete: true, singBoxProcessRunning: false,
+          expectedTunAddress: '172.19.0.1', operationallyActive: false,
+          verificationSources: ['PowerShell Get-NetAdapter -IncludeHidden', '.NET NetworkInterface.GetAllNetworkInterfaces'],
+        };
+      }
+
+      throw new Error('PowerShell 核验失败：' + String(powershellFailure || '无结果')
+        + '；Agent 备用核验失败：' + String(agentFailure || '无结果'));
     });
     this.onEvent = options.onEvent || (() => {});
     this.session = null;
