@@ -132,6 +132,6 @@ Windows 可以在 sing-box 关闭后保留 Wintun 网络适配器对象。0.3.7 
 GitHub Windows 流水线位于 `.github/workflows/windows-build.yml`：PR 触发完整 Windows 构建并上传 workflow artifact，但不发布正式 Release；main/tag 发布按版本检查后创建 Release 并上传 EXE、blockmap、SHA-256。目标公共仓库 `xiaobei206/SSTapNext` 已存在。
 
 
-## 0.3.14 维护修复（2026-11-07）
+## 0.3.14 维护修复（2026-11-07，已发布）
 
-0.3.13 批量节点检测已正式发布。用户实测发现 Windows 中文 ping.exe 子进程输出编码与 Node UTF-8 解码不一致时，严格依赖“时间/time”前缀的 RTT 正则会把有效 ICMP 回包误判为超时。0.3.14 将只按 ASCII 数值分隔符和 ms 提取 RTT，并增加乱码前缀回归测试；不改变节点测速、安全边界或系统代理行为。
+0.3.13 批量节点检测已正式发布。用户实测发现 Windows 中文 ping.exe 子进程输出编码与 Node UTF-8 解码不一致时，严格依赖“时间/time”前缀的 RTT 正则会把有效 ICMP 回包误判为超时。0.3.14 已按 ASCII 数值分隔符和 ms 提取 RTT，并增加乱码前缀回归测试；Node CI 98/98、lock 704/704、sing-box 56/56 和 Windows 构建均通过。用户实机复测 65.49.237.84 仍待完成；不改变节点测速、安全边界或系统代理行为。

@@ -1,10 +1,10 @@
-# SSTap Next 0.3.13 — batch node testing + live SSTap rules
+# SSTap Next 0.3.14 — reliable Windows PING + batch node testing + live SSTap rules
 
 > **新对话 / 新 GPT 接手必读：** [START HERE NEXT GPT.md](START%20HERE%20NEXT%20GPT.md)。该文件是仓库第一入口，写有当前版本、实际 Release 状态、架构、安全边界、未完成验收和下一步。
 >
 > **开发纪律：** 这是个人项目，只在 main 开发，不建立日常 feature 分支或 PR。所有开发必须先更新文档，再修改代码；上下文即将结束时先补齐交接记录。
 
-SSTap Next 0.3.13 is released: [GitHub Release](https://github.com/xiaobei206/SSTapNext/releases/tag/v0.3.13). The installer, blockmap and SHA-256 sidecar are attached to the release.
+SSTap Next 0.3.14 is released: [GitHub Release](https://github.com/xiaobei206/SSTapNext/releases/tag/v0.3.14). The installer, blockmap and SHA-256 sidecar are attached to the release.
 
 SSTap Next is a Windows desktop proxy client built with Electron + React/TypeScript, a .NET 10 elevated Agent, and sing-box. It provides loopback SOCKS/HTTP proxy mode and Windows system-wide TUN mode.
 
@@ -57,4 +57,4 @@ Pushing to \`main\` runs Node regression tests and the Windows build workflow. F
 
 ## 0.3.14 maintenance
 
-A Windows ICMP parsing regression was confirmed by a real PowerShell comparison: native ping to `65.49.237.84` returned three replies (45/43/43 ms), while the 0.3.13 node list showed a timeout. The 0.3.14 maintenance release will make RTT parsing independent of localized text prefixes and add a regression test for garbled OEM-codepage text. This fix does not change proxy routing or Windows system proxy behavior.
+A Windows ICMP parsing regression was confirmed by a real PowerShell comparison: native ping to `65.49.237.84` returned three replies (45/43/43 ms), while the 0.3.13 node list showed a timeout. The 0.3.14 maintenance release makes RTT parsing independent of localized text prefixes and adds a regression test for garbled OEM-codepage text. Installer: [https://github.com/xiaobei206/SSTapNext/releases/download/v0.3.14/SSTap.Next-0.3.14-x64.exe](https://github.com/xiaobei206/SSTapNext/releases/download/v0.3.14/SSTap.Next-0.3.14-x64.exe). This fix does not change proxy routing or Windows system proxy behavior.
