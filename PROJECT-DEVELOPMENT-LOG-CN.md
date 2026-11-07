@@ -471,3 +471,34 @@
 ### 文档提交
 - 设计提交：`f592fc721d2b097f35fc44eb5ef5aea8ecfa6cf6`。
 - 本阶段只创建设计文档，运行时代码和测试 NOT STARTED；下一步先同步交接与测试计划，再开始实现。
+
+## 2026-11-07 — 0.3.15 实时流量 / 节点累计 / UI 可读性（main 实现与验证阶段）
+
+### 用户确认需求
+- 首页展示实时下载/上传速度，以及本次下载累计和本次上传累计（必须分开）。
+- 节点管理显示每节点累计下载、累计上传、总流量；PING、TCPING、代理延迟、下载速度、累计流量、最近检测均可点击升/降序排序。
+- 左下角版本号与周围辅助文字同字号、颜色淡、常规字重；巡检全 UI 字号，过小则提升。
+
+### 已提交实现
+- 新增 Clash API 会话统计模块与测试：`src/shared/singbox-traffic.cjs`、`src/shared/singbox-traffic.test.mjs`。使用 sing-box 1.14.4 `/connections` 的 uploadTotal/downloadTotal；随机 loopback 端口、随机 Bearer secret、每秒采样、3 样本平滑、first-snapshot baseline、counter rollback handling、final event。
+- `singbox-config.cjs` 与 `tun-config.cjs` 可选启用 API；`validate-singbox-configs.mjs` 增加 proxy/TUN 两组真实核心配置检查，目标矩阵 58 项。
+- CoreController / TunController 接入会话生命周期；TUN 状态显式回传 sessionId 和 startedAt，供 Renderer 隔离新旧会话。
+- Electron main 加密状态新增 nodeTrafficStats；只累加 local proxy 流量；10 秒批写、disconnect/exit flush、旧 state 自动迁移；序列化保存期间 revision 增量不会丢失。
+- Preload typed traffic event；首页显示双向速度、本次双向累计与时长；节点列表新增上传/下载/总量并支持指标排序；缺失值置底且 stable sort。
+- 版本标签修改为 14px normal / muted；CSS 98 条显式字号声明中最小值 14px，所有 HTML `small` 统一 14px；未发现 inline fontSize 小字覆盖。
+- package.json、package-lock 根版本、.NET Agent csproj/版本 banner、Build-Windows.ps1 同步 0.3.15；README、CHANGELOG、总览、交接与 Release 记录均已同步。
+
+### 数据归属和安全边界
+- 本地代理所有业务走 selected-proxy，可按 nodeId 累加到该节点历史上传/下载。
+- TUN 总量可能包含 direct outbound，首页明确含直连；不得将整个 TUN 总量算到当前节点。
+- API 仅监听 127.0.0.1；随机 endpoint/secret 只在主进程内存及受权限保护的临时运行配置文件使用（TUN runtime dir 0700、config 0600），不进加密 state、不经 IPC、不入日志；会话清理删除运行目录。
+- 一秒采样，最多十秒批量加密落盘，disconnect/exit final flush；不改变 Windows 系统代理和 TUN fail-closed 清理。
+
+### 验证状态（当前尚待 Actions 实际结果）
+- CSS 审计：98 个显式 font-size 规则，换算后最小 14px；未发现 inline `fontSize` 声明。
+- `npm test`、`npm run verify:lock`、58 次 sing-box 真实配置检查、Windows Agent / TS/Vite / NSIS / Release：NOT VERIFIED（尚未取得本轮最新 HEAD 对应的 Actions 结果）。
+- Windows 10/11 实机所有流量、TUN、持久化、UI 验收：NOT RUN。
+- 最新测试计划：`docs/TEST-PLAN.md`；版本说明：`docs/RELEASE-0.3.15.md`；设计：`docs/LIVE-TRAFFIC-AND-UI-READABILITY.md`。
+
+### 当前下一步
+- 获取最新 main HEAD 的 GitHub Actions run 结果；失败则修复并重新核验，成功后更新 release docs / START HERE 证据。不要把未执行的 Windows 实机验收写成 PASS。
