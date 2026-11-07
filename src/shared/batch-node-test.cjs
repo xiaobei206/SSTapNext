@@ -312,8 +312,9 @@ class BatchNodeTester {
             summary.status = 'running';
             summary.active++;
             this._emit({ ...summary, nodeId: node.id, nodeName: node.name, metric: 'node-started', result: { testedAt: new Date().toISOString(), status: 'testing' } });
+            let result;
             try {
-              const result = await this._testNode(node, entry, {
+              result = await this._testNode(node, entry, {
                 signal,
                 batchId,
                 url: options.url,
@@ -332,16 +333,9 @@ class BatchNodeTester {
                   });
                 },
               });
-              completed++;
-              if (result.status !== 'complete') failed++;
-              await this.onNodeResult({ nodeId: node.id, result });
-              this._emit({ ...summary, status: 'running', completed, failed, active: Math.max(0, summary.active - 1), nodeId: node.id, nodeName: node.name, metric: 'node-complete', result });
-              return result;
             } catch (error) {
               if (signal.aborted) throw abortError();
-              completed++;
-              failed++;
-              const result = {
+              result = {
                 testedAt: new Date().toISOString(),
                 status: 'error',
                 ping: { status: 'error', averageMs: null, lossPercent: 100, message: sanitizeMetricMessage(error.message) },
@@ -349,9 +343,14 @@ class BatchNodeTester {
                 proxyLatency: { status: 'error', latencyMs: null, message: sanitizeMetricMessage(error.message) },
                 download: { status: 'error', averageMbps: null, peakMbps: null, bytes: 0, elapsedMs: 0, threads, message: sanitizeMetricMessage(error.message) },
               };
-              await this.onNodeResult({ nodeId: node.id, result });
-              this._emit({ ...summary, status: 'running', completed, failed, active: Math.max(0, summary.active - 1), nodeId: node.id, nodeName: node.name, metric: 'node-complete', result });
-              return result;
+            }
+            completed++;
+            if (result.status !== 'complete') failed++;
+            let persistenceWarning = null;
+            try { await this.onNodeResult({ nodeId: node.id, result }); }
+            catch (error) { persistenceWarning = sanitizeMetricMessage('结果保存失败：' + String(error.message || error)); }
+            this._emit({ ...summary, status: 'running', completed, failed, active: Math.max(0, summary.active - 1), nodeId: node.id, nodeName: node.name, metric: 'node-complete', result, ...(persistenceWarning ? { persistenceWarning } : {}) });
+            return result;
             } finally {
               summary.active = Math.max(0, summary.active - 1);
             }
@@ -429,7 +428,9 @@ class BatchNodeTester {
           await fs.rm(configPath, { force: true }).catch(() => {});
         },
       };
-      assertNotAborted(signal);
+      // Do not throw after spawning: the caller owns this session and its finally
+      // block must be responsible for terminating the child if cancellation raced
+      // with process startup.
       return session;
     } catch (error) {
       await fs.rm(configPath, { force: true }).catch(() => {});

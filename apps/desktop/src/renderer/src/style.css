@@ -66,3 +66,31 @@
 .sstap-rule-count{font-size:14px;color:#8599b3;white-space:nowrap}
 .sstap-rule-auto{font-size:14px;color:#9bdcc1;background:#19372f;border-radius:5px;padding:3px 6px;white-space:nowrap}
 @media(max-width:1120px){.sstap-rule-count{display:none}.sstap-rule-row{gap:8px;padding:8px}}
+
+
+/* 0.3.13 batch node testing */
+.batch-toolbar{display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap;padding:13px;border:1px solid #2a3c55;border-radius:9px;background:#0e1826}
+.batch-setting{display:grid;gap:5px;min-width:145px}
+.batch-setting label{margin:0!important;font-size:14px!important;color:#8ea3bf!important}
+.batch-setting .text-input{height:36px}
+.batch-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-left:auto}
+.batch-explain{font-size:14px;line-height:1.6;color:#8195af}
+.batch-progress-card{display:grid;gap:9px;padding:13px 15px;border:1px solid #2e5279;border-radius:8px;background:#10233a}
+.batch-progress-top{display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:14px;color:#b7c9df}
+.batch-progress-top b{color:#dcecff}
+.batch-progress-card small{font-size:14px;color:#8da8c8}
+.batch-node-list{overflow-x:auto;min-width:0}
+.batch-node-head,.batch-node-row{display:grid;grid-template-columns:24px 34px minmax(170px,1.7fr) minmax(92px,.72fr) minmax(92px,.72fr) minmax(104px,.8fr) minmax(112px,.9fr) minmax(100px,.85fr) minmax(75px,.6fr) 28px;align-items:center;gap:9px;min-width:1040px}
+.batch-node-head{padding:8px 10px;border-bottom:1px solid #2b3d55;color:#7f95b3;font-size:14px}
+.batch-node-row{padding:11px 10px;border-top:1px solid #202e40;cursor:pointer}
+.batch-node-row.selected{padding-left:10px;padding-right:10px}
+.batch-node-row .node-info{min-width:0}
+.batch-node-row .node-info span{max-width:100%}
+.batch-node-checkbox{width:16px;height:16px;margin:0;accent-color:#3988dc;cursor:pointer}
+.node-test-value{min-width:0;display:grid;gap:4px}
+.node-test-value small{font-size:14px;color:#738ba9}
+.node-test-value b{font-size:14px;color:#b7cbe4;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.node-test-time b{font-size:14px;color:#91a4be}
+.batch-node-row .node-source{font-size:13px;display:none}
+.batch-node-row .icon-button{justify-self:center}
+@media(max-width:1120px){.batch-actions{margin-left:0}.batch-node-list{padding-bottom:4px}}

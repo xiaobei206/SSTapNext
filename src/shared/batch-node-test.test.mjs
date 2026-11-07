@@ -188,14 +188,14 @@ test('runs multiple nodes through one temporary sing-box batch session and persi
     },
     spawnImpl: fakeBatchSpawn(configurations),
     probeSocksImpl: async () => true,
-    pingImpl: async () => ({ status: 'ok', averageMs: 10, lossPercent: 0, sent: 3, received: 3 }),
-    tcpPingImpl: async () => {
+    pingImpl: async () => {
       active++;
       maximum = Math.max(maximum, active);
       await new Promise((resolve) => setTimeout(resolve, 8));
       active--;
-      return { status: 'ok', averageMs: 12, lossPercent: 0, sent: 3, received: 3 };
+      return { status: 'ok', averageMs: 10, lossPercent: 0, sent: 3, received: 3 };
     },
+    tcpPingImpl: async () => ({ status: 'ok', averageMs: 12, lossPercent: 0, sent: 3, received: 3 }),
     requestLatencyImpl: async () => ({ latencyMs: 28, statusCode: 206 }),
     downloadSpeedTestImpl: async (options) => ({
       averageMbps: 320,

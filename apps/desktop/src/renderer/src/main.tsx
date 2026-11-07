@@ -503,7 +503,7 @@ function NodesPage(props: {
     <section className="panel-card">
       <div className="panel-heading">
         <div><div className="panel-title">我的节点 <span className="count-badge">{props.state.nodes.length}</span></div><div className="panel-desc">批量检测结果直接显示在这里；勾选节点可单独检测。</div></div>
-        <button className="button button-quiet" disabled={props.busy || props.state.nodes.length === 0} onClick={() => props.batchSelectedNodeIds.length === props.state.nodes.length ? props.toggleBatchNodeSelection('', false) : props.state.nodes.forEach((node) => props.toggleBatchNodeSelection(node.id, true))}>{allSelected ? '全不选' : '全选节点'}</button>
+        <button className="button button-quiet" disabled={props.busy || props.state.nodes.length === 0} onClick={() => props.state.nodes.forEach((node) => props.toggleBatchNodeSelection(node.id, !allSelected))}>{allSelected ? '全不选' : '全选节点'}</button>
       </div>
       <div className="batch-toolbar">
         <div className="batch-setting"><label>同时测速节点数</label><select className="text-input" value={props.batchConcurrency} disabled={props.busy} onChange={(event) => props.setBatchConcurrency(event.target.value)}>{['1','2','4','8','16','32'].map((value) => <option key={value} value={value}>{value} 个节点</option>)}</select></div>
