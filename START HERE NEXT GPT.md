@@ -4,7 +4,8 @@
 >
 > 仓库：https://github.com/xiaobei206/SSTapNext  
 > 唯一开发线：**main**  
-> 当前正式发布版本：**0.3.14**  
+| 当前正式发布版本：**0.3.14**
+| main 开发版本：**0.3.15（未发布）**  
 上一正式版本：**0.3.13**  
 > 本文件是新对话的第一入口；如果本文件与 GitHub 实际状态不一致，以实时仓库、Actions 和 Release 为准，并先修正文档。
 
@@ -42,7 +43,7 @@
 - GitHub：xiaobei206/SSTapNext
 - 唯一开发入口：main；不新建 feature 分支或 PR。
 - 当前正式 Release：v0.3.14（2026-11-07），https://github.com/xiaobei206/SSTapNext/releases/tag/v0.3.14
-- 当前已发布 package version：0.3.14；上一正式版本：0.3.13。
+- 当前公开 Release：v0.3.14；main 的 package/Agent 开发版本已提升至 0.3.15，尚未发布；上一正式版本：0.3.13。
 - 0.3.14 Release 构建 commit：`fab186b48b0597b76afc1a79dc6e7c1dd59dbe6b`；最新 parser/test main commit：`d0fbcd52c87aa94c60aeb054789e5fc786e71868`。
 - 旧分支 `feature/sstap-rule-library-0312` 不再使用；PR #1 仅是历史迁移记录。
 
@@ -312,21 +313,28 @@ GitHub 最新状态每次都应现查：
 下一步：安装 0.3.14 后，批量重新检测原目标 65.49.237.84，对照 PowerShell 原生平均 43ms；然后抽查其他节点，确认可达节点正常显示 RTT、真正无 ICMP 回包仍显示超时。
 
 
-## 0.3.15 设计已提交：实时流量统计 + 节点累计流量 + UI 可读性
+## 0.3.15 实现进行中：实时流量统计 + 节点累计 + UI 可读性
 
-设计文档：`docs/LIVE-TRAFFIC-AND-UI-READABILITY.md`；设计提交：`f592fc721d2b097f35fc44eb5ef5aea8ecfa6cf6`。当前仍是文档阶段，**尚未改运行时代码**。
+设计文档：`docs/LIVE-TRAFFIC-AND-UI-READABILITY.md`；先行设计提交：`f592fc721d2b097f35fc44eb5ef5aea8ecfa6cf6`。功能代码已进入 main，正式验证/发布尚未完成。
 
-用户确认的新增要求：
-- 连接中心显示本次上传累计和本次下载累计（分开），同时显示上传/下载实时速度和会话时长。
-- 节点管理显示节点历史累计上传、累计下载和合计；统计归属不能把 TUN 的 Direct 流量算到代理节点。
-- 节点 PING、TCPING、代理延迟、下载速度、上传/下载/总流量表头可点选升序/降序；无结果一直置底；排序不改变活动/选中/勾选。
-- 左下角版本号改为 14px 常规字重、辅助色；全 UI 普通正文/辅助文本和 HTML small 设置 14px 最小字号，核查窄窗口布局。
+### 已实现（源码已推 main）
+- 新增 `src/shared/singbox-traffic.cjs` 与测试：从 sing-box 1.14.4 Clash API `/connections` 读取 `uploadTotal` / `downloadTotal`，拆分累计和速率；随机端口、随机 Bearer 密钥、loopback-only。
+- 本地代理和 TUN controller 已分别接入统计生命周期，stop 时 final poll。
+- 主进程加密状态新增 `nodeTrafficStats`，只累计本地代理流量；10 秒批量写盘，断开/退出 flush；旧状态字段缺省迁移为空对象。
+- 首页显示下载速度、上传速度、本次下载累计、本次上传累计、时长；TUN 标注“含直连流量”。
+- 节点管理增加上传累计、下载累计、总流量，PING/TCPING/代理延迟/下载速度/上下载流量/总量/最近检测均可点击排序，缺失值置底。
+- 版本号淡化为普通 14px 辅助文字；`small` 全局明确 14px；节点表格扩大横向滚动范围。
+- 当前代码分支版本已提升到 package/lock/Agent 0.3.15；公开 Release 仍为 0.3.14。
 
-实现边界：
-- 当前 sing-box 1.14.4 内置 Clash API `/connections` 返回 `uploadTotal` 与 `downloadTotal`。启用 API 仅绑定随机 loopback 端口、随机 Bearer secret；API 地址/密钥仅保留在主进程。
-- 本地代理 route final 为 selected-proxy，其流量可准确计入对应 nodeId 历史上/下行。
-- TUN 分流可能包含 direct outbound；首页应标注“系统 TUN 本次流量（含直连）”，但不得把 TUN 总流量记入节点个人累计。V2Ray outbound stats 不默认包含在随包核心中。
-- 每秒采样仅更新内存和 UI；加密状态每 10 秒批量写一次，并在断开/退出 final flush；禁止每秒磁盘写入。
-- 不升级核心、不引入依赖、不修改系统代理，不触碰既有 TUN fail-closed 清理边界。
+### 重要边界与安全
+- 本地代理流量按 active nodeId 计入节点历史上/下行；TUN 统计只显示该系统会话总量（包含 direct 流量），不归属到节点。
+- API 只监听 127.0.0.1，随机 Bearer secret 仅供主进程内采样器使用。代理临时配置/TUN 会话配置文件含 API 端点和 secret，文件位于受权限保护的运行目录；不写入 state.enc.json、不经 IPC 返回、不写入日志，TUN 清理会删除其会话目录。
+- 采样每秒一次；节点累计最多 10 秒批量写入加密状态，并在断开/退出 flush。
+- 不升级 sing-box、不修改 Windows 系统代理、不改变 TUN Agent fail-closed 清理逻辑。
 
-下一步：先补齐 HANDOVER、TEST-PLAN 与开发日志的设计记录，然后开始 shared 统计器、两类 controller、主进程持久化/事件桥接、UI 排序/字体与版本同步；正式版本目标 0.3.15。
+### 尚未完成
+- Node 自动化 / package-lock、固定 sing-box 1.14.4 的 58 组配置检查、Windows Agent、TypeScript/Vite、NSIS / SHA、GitHub Actions 当前 HEAD 状态核验。
+- Windows 10/11 实机代理上/下行、断开 final/reconnect reset、跨重启节点累计、TUN 含直连统计、API 失败、字号布局与节点删除验收。
+- 只有对应 CI 和 Release 资产全部实际通过后才能把 0.3.15 标记已发布；CI 不等于用户实机验收。
+
+下一步：先完成本次代码检查和 Actions 结果；遇到失败先修复，再更新版本说明与交接。
