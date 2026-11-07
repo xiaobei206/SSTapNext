@@ -3,7 +3,7 @@
 ## 1. 项目标识与当前状态
 
 - GitHub 仓库：`https://github.com/xiaobei206/SSTapNext`；main 是唯一可信开发线。
-- 最新公开 Release：**0.3.15**；https://github.com/xiaobei206/SSTapNext/releases/tag/v0.3.15。当前 main package/Agent 版本为 **0.3.15**；Node CI 107/107、lock 704/704、sing-box 58/58、Windows Agent / TS/Vite / NSIS / EXE / blockmap / SHA 均已通过并发布。Windows 实机流量/TUN验收仍待用户机器执行。
+- 最新公开 Release：**0.3.15**；https://github.com/xiaobei206/SSTapNext/releases/tag/v0.3.15。0.3.15 用户实测发现系统 TUN 启动被 Agent 全面拒绝 Clash API；主分支正在修复并升级到 **0.3.16**。不要把已存在的 0.3.15 Release 资产视为当前 Agent 白名单修复已包含。
 - 0.3.12 功能代码进入 main 的发布 commit：`8f4be60d480e798bf3d17291230454df70674c86`。其后的 main 提交为交接/文档维护，不代表另一个程序版本；新对话必须动态检查 main 最新 SHA。
 - 0.3.12 Release 已含 Windows x64 安装程序、blockmap 和 SHA-256。发布工作流 run `42344552136`、Node CI run `42344552127` 均成功；PR 最新功能 HEAD 的 Node 86/86、package-lock 704/704、sing-box 55/55、Agent、TS/Vite、NSIS 构建也通过。
 - 0.3.12 增加原版 FQrabbit SSTap `.rules` 转换、规则库在线更新、分流页面规则管理、游戏规则叠加和优先级保护。**真实 TUN/Wintun、规则库运行时行为和节点公网链路仍需用户 Windows 设备验收**，见 `docs/WINDOWS-ACCEPTANCE.md`。
@@ -15,7 +15,7 @@
 
 SSTap Next 是 Windows 代理客户端，提供节点/订阅导入、sing-box 本地 SOCKS/HTTP mixed 代理、节点测速、Windows 系统级 TUN、全局/绕过中国大陆/自定义规则分流、DNS 地址族策略和手动 sing-box 核心升级。
 
-### 当前 main 0.3.15 正式版本基线
+### 当前 main 0.3.16 目标开发基线
 
 - 节点协议：VLESS、Hysteria2、Shadowsocks SIP002、VMess、Trojan，以及已实现的 TLS/Reality/WebSocket/gRPC/混淆参数边界。
 - 订阅：单节点、多节点、Base64 列表、刷新、稳定 ID、来源管理、失败原子保留旧列表。
@@ -23,7 +23,7 @@ SSTap Next 是 Windows 代理客户端，提供节点/订阅导入、sing-box �
 - 本地代理：sing-box mixed inbound，仅监听 `127.0.0.1`，不自动改 Windows 系统代理。
 - 单节点测速：通过选中节点 SOCKS5，Range/多线程/取消/历史记录，并有多个公开测速源回退。
 - 批量节点检测（0.3.13）：节点页一键全部/勾选检测，显示 ICMP PING、TCPING、代理 HTTP 延迟、下载 Mbps 和检测时间；并发 1/2/4/8/16/32；每批一个临时 sing-box 会话承载多个 loopback inbound/outbound，Range 总 worker ≤64；逐节点结果加密持久化。Windows 实机压力和连接隔离验收仍须完成。
-- 实时流量与节点统计（0.3.15）：使用 sing-box 1.14.4 Clash API /connections 采集上传/下载字节；首页分开展示本次上下行速度和累计；节点页累计只记录可准确归属到本地代理节点的流量，TUN 总量明确含直连，不归入节点个人统计。节点指标表头支持排序，侧栏版本与全局小字号改善。CI、Windows 安装包构建已通过；实机验收仍待用户执行。
+- 实时流量与节点统计（先随 0.3.15 发布，Agent 白名单修复目标 0.3.16）：使用 sing-box 1.14.4 Clash API /connections 采集上传/下载字节；首页分开展示本次上下行速度和累计；节点页累计只记录可准确归属到本地代理节点的流量，TUN 总量明确含直连，不归入节点个人统计。节点指标表头支持排序，侧栏版本与全局小字号改善。0.3.15 TUN 启动存在 Agent 拒绝 Clash API 的实测缺陷，0.3.16 进行白名单修复并重新构建；实机验收仍待用户执行。
 - 系统 TUN：独立 .NET 10 Agent 经 UAC 启动 sing-box，双栈 TUN、auto route、strict route、DNS hijack；三种分流模式。
 - DNS：默认 `ipv4_only`；用户可选 `prefer_ipv4` 或 `prefer_ipv6` 双栈策略。双栈要求本地接入网络和所选代理节点出口都支持 IPv6。
 - sing-box 核心：默认下载脚本仍锁定 1.14.4；软件读取实际核心版本；用户可以手动升级 EXE 和同包 DLL。Windows 构建执行 54 组协议/模式/DNS 地址族配置检查，并额外检查 SSTap 本地 source 规则集、多节点批测和流量统计 API 配置。 
