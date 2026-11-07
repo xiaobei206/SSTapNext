@@ -1,14 +1,28 @@
-## 0.3.15 设计阶段：实时流量 / 节点累计 / UI 字号
+## 0.3.15 实现进度（当前 main）：实时流量统计 + 节点累计 + UI 可读性
 
-- 目标版本：0.3.15；当前正式版本仍为 0.3.14。
-- 设计文档：`docs/LIVE-TRAFFIC-AND-UI-READABILITY.md`。
-- 用户明确要求首页本次上传/下载累计分开、上传/下载实时速度；节点页分开累计上传/下载/合计；指标表头点击升降序；左下角版本淡化、字号与周围一致；巡检全 UI 字号。
-- 技术方案：使用 sing-box 1.14.4 Clash API `/connections` 的 `uploadTotal` / `downloadTotal`；API 只绑定随机 `127.0.0.1` 端口并使用随机 Bearer secret，凭据留在主进程内存。
-- 归属原则：本地代理会话 final=selected-proxy，可按 nodeId 累加历史流量；TUN 会话总量可能包括 direct 流量，只显示在首页并明确“含直连”，不错误累加到节点统计。
-- 每秒采样更新 UI；加密状态统计每 10 秒批量 flush，并在断开/退出时 final flush。不要每秒写磁盘。
-- 排序缺失值固定置底，排序不更改节点选中、活动和勾选状态。
-- 设计已先提交（docs commit `f592fc721d2b097f35fc44eb5ef5aea8ecfa6cf6`）；本节更新属于文档阶段，运行时代码仍 NOT STARTED。
-- **下一步：** 更新主进程、core/TUN controller 与 renderer 相关设计/测试文档后，才开始代码改动。
+设计文档：`docs/LIVE-TRAFFIC-AND-UI-READABILITY.md`；先行设计提交：`f592fc721d2b097f35fc44eb5ef5aea8ecfa6cf6`。功能代码已进入 main，正式验证/发布尚未完成。
+
+### 已实现（源码已推 main）
+- 新增 `src/shared/singbox-traffic.cjs` 与测试：从 sing-box 1.14.4 Clash API `/connections` 读取 `uploadTotal` / `downloadTotal`，拆分累计和速率；随机端口、随机 Bearer 密钥、loopback-only。
+- 本地代理和 TUN controller 已分别接入统计生命周期，stop 时 final poll。
+- 主进程加密状态新增 `nodeTrafficStats`，只累计本地代理流量；10 秒批量写盘，断开/退出 flush；旧状态字段缺省迁移为空对象。
+- 首页显示下载速度、上传速度、本次下载累计、本次上传累计、时长；TUN 标注“含直连流量”。
+- 节点管理增加上传累计、下载累计、总流量，PING/TCPING/代理延迟/下载速度/上下载流量/总量/最近检测均可点击排序，缺失值置底。
+- 版本号淡化为普通 14px 辅助文字；`small` 全局明确 14px；节点表格扩大横向滚动范围。
+- 当前代码分支版本已提升到 package/lock/Agent 0.3.15；公开 Release 仍为 0.3.14。
+
+### 重要边界与安全
+- 本地代理流量按 active nodeId 计入节点历史上/下行；TUN 统计只显示该系统会话总量（包含 direct 流量），不归属到节点。
+- API 只监听 127.0.0.1，随机 Bearer secret 仅供主进程内采样器使用。代理临时配置/TUN 会话配置文件含 API 端点和 secret，文件位于受权限保护的运行目录；不写入 state.enc.json、不经 IPC 返回、不写入日志，TUN 清理会删除其会话目录。
+- 采样每秒一次；节点累计最多 10 秒批量写入加密状态，并在断开/退出 flush。
+- 不升级 sing-box、不修改 Windows 系统代理、不改变 TUN Agent fail-closed 清理逻辑。
+
+### 尚未完成
+- Node 自动化 / package-lock、固定 sing-box 1.14.4 的 58 组配置检查、Windows Agent、TypeScript/Vite、NSIS / SHA、GitHub Actions 当前 HEAD 状态核验。
+- Windows 10/11 实机代理上/下行、断开 final/reconnect reset、跨重启节点累计、TUN 含直连统计、API 失败、字号布局与节点删除验收。
+- 只有对应 CI 和 Release 资产全部实际通过后才能把 0.3.15 标记已发布；CI 不等于用户实机验收。
+
+下一步：先完成本次代码检查和 Actions 结果；遇到失败先修复，再更新版本说明与交接。
 
 # SSTap Next — 当前交接摘要（2026-11-07）
 
