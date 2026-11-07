@@ -240,12 +240,40 @@ class TunController {
     if (!exitedProcess || !adapterId || reportedStatus?.[1] !== 'Down'
       || !reportedAddresses || reportedAddresses[1].trim() !== '') return null;
 
-    const expectedId = `{${adapterId[1]}}`;
-    const current = await this.inspectAdapter(expectedId);
+    const expectedId = '{' + adapterId[1] + '}';
+    const exitedPid = Number(exitedProcess[1]);
+    const current = await this.inspectAdapter(expectedId, exitedPid);
     const normalizedExpected = adapterId[1].replace(/-/g, '').toLowerCase();
     const normalizedCurrent = String(current?.id || '').replace(/[{}-]/g, '').toLowerCase();
+    const relatedAdapters = Array.isArray(current?.relatedAdapters)
+      ? current.relatedAdapters
+      : current?.relatedAdapters ? [current.relatedAdapters] : [];
+
+    if (current?.absent === true) {
+      const sources = Array.isArray(current.verificationSources) ? current.verificationSources : [];
+      if (current.found !== false || current.inspectionComplete !== true
+        || current.matchCount !== 0 || relatedAdapters.length !== 0
+        || current.processCheckComplete !== true || current.singBoxProcessRunning !== false
+        || current.expectedTunAddress !== '172.19.0.1'
+        || current.operationallyActive !== false
+        || !sources.includes('PowerShell Get-NetAdapter -IncludeHidden')
+        || !sources.includes('.NET NetworkInterface.GetAllNetworkInterfaces')) {
+        throw new Error('网卡不存在判定未通过双重核验：' + JSON.stringify({
+          found: current?.found, matchCount: current?.matchCount,
+          relatedAdapters, processCheckComplete: current?.processCheckComplete,
+          singBoxProcessRunning: current?.singBoxProcessRunning, verificationSources: sources,
+        }));
+      }
+      return {
+        exitedPid, adapterId: expectedId, adapterAbsent: true,
+        adapterName: 'SSTap Next', adapterDescription: 'sing-tun Tunnel (历史接口已不存在)',
+        status: 'Absent', addresses: [], rawStatus: 'Absent',
+      };
+    }
+
     if (!current || current.found !== true || current.ambiguous === true
       || current.inspectionError
+      || current.processCheckComplete !== true || current.singBoxProcessRunning !== false
       || current.name !== 'SSTap Next'
       || typeof current.description !== 'string'
       || !current.description.startsWith('sing-tun Tunnel')
@@ -254,22 +282,27 @@ class TunController {
       || !Array.isArray(current.addresses)
       || current.addresses.length !== 0
       || current.expectedTunAddress !== '172.19.0.1'
-      || current.operationallyActive !== false) {
-      throw new Error(`实时网卡核验不满足安全恢复条件：${JSON.stringify({
+      || current.operationallyActive !== false
+      || relatedAdapters.length > 1
+      || (relatedAdapters.length === 1
+        && String(relatedAdapters[0].id || '').replace(/[{}-]/g, '').toLowerCase() !== normalizedExpected)) {
+      throw new Error('实时网卡核验不满足安全恢复条件：' + JSON.stringify({
         found: current?.found, name: current?.name, description: current?.description,
         id: current?.id, status: current?.status, addresses: current?.addresses,
-        operationallyActive: current?.operationallyActive, inspectionError: current?.inspectionError,
-      })}`);
+        processCheckComplete: current?.processCheckComplete,
+        singBoxProcessRunning: current?.singBoxProcessRunning,
+        relatedAdapters, operationallyActive: current?.operationallyActive,
+        inspectionError: current?.inspectionError,
+      }));
     }
 
     return {
-      exitedPid: Number(exitedProcess[1]), adapterId: current.id,
+      exitedPid, adapterId: current.id,
       adapterName: current.name, adapterDescription: current.description,
       status: current.status, addresses: current.addresses,
-      rawStatus: current.rawStatus || current.status,
+      rawStatus: current.rawStatus || current.status, adapterAbsent: false,
     };
   }
-
 
   async recoverStaleSessions() {
     if (this.recoveryPromise) return this.recoveryPromise;
@@ -331,21 +364,30 @@ class TunController {
             }
 
             const recoveredAt = new Date().toISOString();
+            const releaseSummary = verifiedInactiveAdapter.adapterAbsent
+              ? '0.3.10 已通过 PowerShell 与 Agent 双重枚举确认历史接口 ' + verifiedInactiveAdapter.adapterId
+                + ' 已不存在，sing-box PID ' + verifiedInactiveAdapter.exitedPid + ' 当前未运行。'
+              : '0.3.10 已核实历史 sing-box PID ' + verifiedInactiveAdapter.exitedPid
+                + ' 已退出；同一网卡 ' + verifiedInactiveAdapter.adapterId + ' 当前为 ' + verifiedInactiveAdapter.status + ' 且没有 IP 地址。';
             const recoveredStatus = {
               ...status, status: 'stopped_with_warning', corePid: null, updatedAt: recoveredAt,
-              lastError: `0.3.9 已核实历史 sing-box PID ${verifiedInactiveAdapter.exitedPid} 已退出；同一网卡 ${verifiedInactiveAdapter.adapterId} 当前为 ${verifiedInactiveAdapter.status} 且没有 IP 地址。已解除旧清理锁；保留 Windows Wintun 设备对象及原始日志，不删除网卡。`,
+              lastError: releaseSummary + ' 已解除旧清理锁；保留原始状态与日志，不删除网卡、驱动、路由或 DNS。',
             };
-            const temporaryStatusPath = `${statusPath}.recovering`;
+            const temporaryStatusPath = statusPath + '.recovering';
             await fs.writeFile(temporaryStatusPath, JSON.stringify(recoveredStatus, null, 2), 'utf8');
             await fs.rename(temporaryStatusPath, statusPath);
             status = recoveredStatus;
 
-            const recoveryMarker = path.join(directory, '.verified-inactive-adapter-recovered-0.3.9');
+            const recoveryMarkerName = verifiedInactiveAdapter.adapterAbsent
+              ? '.verified-absent-adapter-recovered-0.3.10'
+              : '.verified-inactive-adapter-recovered-0.3.10';
+            const recoveryMarker = path.join(directory, recoveryMarkerName);
             await fs.writeFile(recoveryMarker, JSON.stringify({
-              recoveredAt, source: 'PowerShell Get-NetAdapter/Get-NetIPAddress (with .NET Agent read-only fallback)',
+              recoveredAt, source: 'PowerShell Get-NetAdapter -IncludeHidden + .NET NetworkInterface enumeration; historical sing-box PID check',
               ...verifiedInactiveAdapter,
             }, null, 2), 'utf8');
-            console.warn(`[TUN-RECOVERY] 已确认历史 Wintun 已释放并正式解除旧 cleanup_error 锁：${verifiedInactiveAdapter.adapterId}；原状态归档为 status.cleanup_error-legacy.json，日志保留。`);
+            console.warn('[TUN-RECOVERY] 已确认历史 TUN 资源不存在或处于非活动状态并解除旧 cleanup_error 锁：'
+              + verifiedInactiveAdapter.adapterId + '；原状态归档，日志保留。');
           } else {
             const legacyReviewMarker = path.join(directory, '.legacy-cleanup-review-0.3.2');
             const known031StopSignalFailure = status.corePid == null
