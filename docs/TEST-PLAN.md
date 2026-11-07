@@ -16,7 +16,7 @@
 | ZIP 安全性 | ZIP 中央目录、路径、压缩方式、条目大小和 CRC-32 | 拒绝 ZIP64/分卷/加密/路径穿越/CRC 不匹配/异常大小 |
 | 在线更新 | commit 固定下载、版本目录、manifest、current.json | 相同 SHA 不重复更新；失败不切换活动版本；旧版本保留 |
 | 规则选择 | 持久化 ID、上游规则移除 | 保留仍存在的选择；清理已不存在的 ID |
-| TUN 约束 | 更新/更改选择时的 Agent 状态 | requested/awaiting_uac/starting/running/stopping 阶段禁止修改 |
+| TUN 约束 | 控制器 Promise、保留会话和 Agent 状态 | recovery/start/stop 在途、requested/awaiting_uac/starting/running/stopping/cleanup_error 时禁止规则更新与路由设置修改；规则更新期间禁止启动 TUN |
 | 动作与优先级 | proxy/direct 两种动作、bypass-cn 叠加 | 游戏规则先于自动 BypassCNandLan，再先于 GeoSite/GeoIP fallback |
 
 ## sing-box 实际核心检查
@@ -46,7 +46,8 @@ PR 触发构建但不发布正式 GitHub Release；正式 Release 只能由 main
 - 安装并启动当前 PR 对应安装包，检查规则库页面、搜索、启用/停用和状态展示。
 - 首次下载完整规则库；核对上游版本 SHA、规则总数、CIDR 总量和更新时间。
 - 验证头部 0/1 的 Proxy/Direct 映射，尤其游戏规则与大陆规则有 CIDR 重叠时的优先级。
-- 在 TUN 连接、断开和启动过渡阶段，确认规则更新/选择控件被禁用。
+- 在 TUN recovery/start/stop、running、cleanup_error 阶段，确认规则更新、规则选择、基础策略和 DNS 控件被禁用，并由主进程拒绝绕过 UI 的 IPC 修改。
+- 在规则库下载/转换过程中，确认连接中心的 TUN 启动按钮禁用，主进程也拒绝并发 TUN 启动；待更新完成后恢复可用。
 - 模拟上游不可达、下载截断、ZIP CRC 错误或解析失败；确认旧规则版本保持可用。
 - 验证全局代理、绕过中国大陆、自定义规则、UDP/QUIC、DNS 和真实节点公网出口。
 - 至少 10 轮 TUN connect → disconnect → reconnect；检查核心真实退出、路由/DNS 恢复和 Wintun 清理状态。
