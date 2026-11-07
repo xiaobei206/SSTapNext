@@ -568,12 +568,13 @@ function NodesPage(props: {
   const [sortState, setSortState] = useState<{ key: NodeSortKey; direction: 'asc' | 'desc' } | null>(null);
   const sortedNodes = useMemo(() => {
     const rows = props.state.nodes.map((node, index) => ({ node, index }));
-    if (!sortState) return rows.map((row) => row.node);
+    const currentSort = sortState;
+    if (!currentSort) return rows.map((row) => row.node);
     const metric = (node: SstapNode): number | null => {
       const result = props.state.nodeTestResults?.[node.id];
       const traffic = props.state.nodeTrafficStats?.[node.id];
       const valid = (value: unknown): number | null => typeof value === 'number' && Number.isFinite(value) ? value : null;
-      switch (sortState.key) {
+      switch (currentSort.key) {
         case 'ping': return result?.ping?.status === 'ok' ? valid(result.ping.averageMs) : null;
         case 'tcping': return result?.tcping?.status === 'ok' ? valid(result.tcping.averageMs) : null;
         case 'proxyLatency': return result?.proxyLatency?.status === 'ok' ? valid(result.proxyLatency.latencyMs) : null;
@@ -592,7 +593,7 @@ function NodesPage(props: {
       const bMissing = b === null;
       if (aMissing !== bMissing) return aMissing ? 1 : -1;
       if (aMissing || bMissing) return left.index - right.index;
-      const comparison = sortState.direction === 'asc' ? a! - b! : b! - a!;
+      const comparison = currentSort.direction === 'asc' ? a! - b! : b! - a!;
       return comparison || left.index - right.index;
     });
     return rows.map((row) => row.node);
@@ -604,7 +605,7 @@ function NodesPage(props: {
   }
   function sortHeading(label: string, key: NodeSortKey) {
     const active = sortState?.key === key;
-    const arrow = active ? (sortState.direction === 'asc' ? '↑' : '↓') : '↕';
+    const arrow = sortState?.key === key ? (sortState.direction === 'asc' ? '↑' : '↓') : '↕';
     return <button type="button" className={`node-sort-button ${active ? 'active' : ''}`} title={`按${label}排序，再次点击切换方向`} aria-label={`按${label}${active ? (sortState!.direction === 'asc' ? '升序' : '降序') : '升序'}排序`} onClick={() => toggleSort(key)}>{label}<span>{arrow}</span></button>;
   }
   return <div className="page-stack">
