@@ -30,10 +30,16 @@ function makeFakePowerShell() {
       try {
         const session = JSON.parse(await fs.readFile(sessionFile, 'utf8'));
         const statusPath = session.statusPath;
-        const status = (state, lastError = null) => fs.writeFile(statusPath, JSON.stringify({
-          sessionId: session.sessionId, status: state, corePid: 1234, interfaceName: 'SSTap Next',
-          mode: session.mode, startedAt: new Date().toISOString(), updatedAt: new Date().toISOString(), lastError,
-        }));
+        // Mirror the real .NET Agent: write a complete temporary status file,
+        // then atomically replace status.json so polling never observes partial JSON.
+        const status = async (state, lastError = null) => {
+          const tempStatusPath = `${statusPath}.tmp`;
+          await fs.writeFile(tempStatusPath, JSON.stringify({
+            sessionId: session.sessionId, status: state, corePid: 1234, interfaceName: 'SSTap Next',
+            mode: session.mode, startedAt: new Date().toISOString(), updatedAt: new Date().toISOString(), lastError,
+          }));
+          await fs.rename(tempStatusPath, statusPath);
+        };
         await status('running');
         stopWatcher = setInterval(async () => {
           try {
