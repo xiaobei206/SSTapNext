@@ -1,20 +1,20 @@
-# SSTap Next 0.3.15 (main development) — live traffic statistics + sortable node metrics
+# SSTap Next 0.3.15 — live traffic statistics + sortable node metrics
 
 > **新对话 / 新 GPT 接手必读：** [START HERE NEXT GPT.md](START%20HERE%20NEXT%20GPT.md)。该文件是仓库第一入口，写有当前版本、实际 Release 状态、架构、安全边界、未完成验收和下一步。
 >
 > **开发纪律：** 这是个人项目，只在 main 开发，不建立日常 feature 分支或 PR。所有开发必须先更新文档，再修改代码；上下文即将结束时先补齐交接记录。
 
-Latest public release: **0.3.14** ([GitHub Release](https://github.com/xiaobei206/SSTapNext/releases/tag/v0.3.14)). Version **0.3.15** is under development on main; do not treat it as released until its Windows build and release assets are verified.
+Latest release: **0.3.15** ([GitHub Release](https://github.com/xiaobei206/SSTapNext/releases/tag/v0.3.15)). The Windows x64 installer, blockmap and SHA-256 sidecar are published.
 
 SSTap Next is a Windows desktop proxy client built with Electron + React/TypeScript, a .NET 10 elevated Agent, and sing-box. It provides loopback SOCKS/HTTP proxy mode and Windows system-wide TUN mode.
 
-## 0.3.15 main development (not yet released)
+## 0.3.15 changes
 
 - Adds live upload/download rates and separate per-session upload/download totals through the pinned sing-box Clash API.
 - Adds encrypted per-node upload/download/total history for local-proxy traffic only; TUN session totals explicitly include direct traffic and are not assigned to a selected node.
 - Makes PING, TCPING, proxy latency, download rate, upload/download/total traffic and last-test headers sortable.
 - Reduces sidebar version label emphasis and sets HTML small text to at least 14px.
-- CI, Windows installation and real-machine traffic/TUN acceptance are pending.
+- CI: 107/107 tests and 704/704 lock references passed; Windows build: 58/58 sing-box config checks, .NET Agent, TypeScript/Vite, NSIS, installer and SHA verification passed. Real Windows proxy/TUN behavior still requires user-device acceptance.
 
 ## 0.3.13 changes
 
