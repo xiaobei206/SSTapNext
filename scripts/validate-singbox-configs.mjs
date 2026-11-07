@@ -10,7 +10,7 @@ import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
 const { parseShareText } = require('../src/shared/node-parser.cjs');
 const { buildTunConfig } = require('../src/shared/tun-config.cjs');
-const { buildBatchProxyConfig } = require('../src/shared/singbox-config.cjs');
+const { buildBatchProxyConfig, buildProxyConfig } = require('../src/shared/singbox-config.cjs');
 
 function argValue(name) {
   const index = process.argv.indexOf(name);
@@ -188,7 +188,58 @@ async function main() {
     await fsp.rm(work, { recursive: true, force: true });
   }
 
-  const expected = modes.length * dnsStrategies.length * fixtures.length + 2;
+  // Validate the secured loopback telemetry controller in both proxy and TUN
+  // configurations against the exact sing-box binary used by the Windows build.
+  const telemetryEndpoint = { host: '127.0.0.1', port: 25321, secret: 'a'.repeat(64) };
+  const proxyTelemetryDir = path.join(work, 'proxy-traffic-api');
+  await fsp.mkdir(proxyTelemetryDir, { recursive: true });
+  const proxyTelemetry = buildProxyConfig(nodes[0][1], {
+    listenPort: 25322,
+    clashApi: telemetryEndpoint,
+  });
+  if (proxyTelemetry.experimental?.clash_api?.external_controller !== '127.0.0.1:25321'
+    || proxyTelemetry.experimental?.clash_api?.secret !== telemetryEndpoint.secret) {
+    throw new Error('local proxy traffic API is not protected and loopback-only');
+  }
+  const proxyTelemetryPath = path.join(proxyTelemetryDir, 'config.json');
+  await fsp.writeFile(proxyTelemetryPath, JSON.stringify(proxyTelemetry, null, 2), 'utf8');
+  const proxyTelemetryCheck = spawnSync(core, ['check', '-c', proxyTelemetryPath], {
+    encoding: 'utf8', timeout: 30000, windowsHide: true,
+  });
+  if (proxyTelemetryCheck.error || proxyTelemetryCheck.status !== 0) {
+    const detail = [proxyTelemetryCheck.error?.message, proxyTelemetryCheck.stderr, proxyTelemetryCheck.stdout].filter(Boolean).join('\\n').trim();
+    failures.push({ caseName: 'Local proxy loopback Clash traffic API', detail: detail || `exit=${proxyTelemetryCheck.status}` });
+    console.error('[FAIL] Local proxy loopback Clash traffic API');
+    if (detail) console.error(detail);
+  } else {
+    passed++;
+    console.log('[PASS] Local proxy loopback Clash traffic API');
+  }
+
+  const tunTelemetryDir = path.join(work, 'tun-traffic-api');
+  await fsp.mkdir(tunTelemetryDir, { recursive: true });
+  const tunTelemetry = buildTunConfig(nodes[0][1], { mode: 'global' }, {
+    interfaceName: 'SSTap Next Audit',
+    logPath: path.join(tunTelemetryDir, 'sing-box.log'),
+    cachePath: path.join(tunTelemetryDir, 'cache.db'),
+    clashApi: telemetryEndpoint,
+  });
+  const tunTelemetryPath = path.join(tunTelemetryDir, 'config.json');
+  await fsp.writeFile(tunTelemetryPath, JSON.stringify(tunTelemetry, null, 2), 'utf8');
+  const tunTelemetryCheck = spawnSync(core, ['check', '-c', tunTelemetryPath], {
+    encoding: 'utf8', timeout: 30000, windowsHide: true,
+  });
+  if (tunTelemetryCheck.error || tunTelemetryCheck.status !== 0) {
+    const detail = [tunTelemetryCheck.error?.message, tunTelemetryCheck.stderr, tunTelemetryCheck.stdout].filter(Boolean).join('\\n').trim();
+    failures.push({ caseName: 'System TUN loopback Clash traffic API', detail: detail || `exit=${tunTelemetryCheck.status}` });
+    console.error('[FAIL] System TUN loopback Clash traffic API');
+    if (detail) console.error(detail);
+  } else {
+    passed++;
+    console.log('[PASS] System TUN loopback Clash traffic API');
+  }
+
+  const expected = modes.length * dnsStrategies.length * fixtures.length + 4;
   console.log(`\n配置校验：${passed}/${expected} 通过`);
   if (failures.length) {
     console.error(`失败项：${failures.map((item) => item.caseName).join('；')}`);
