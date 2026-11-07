@@ -14,7 +14,7 @@
 ## Compatibility and safety
 
 - No Wintun/TUN cleanup behavior is changed.
-- Rule updates and selection changes are blocked while TUN is active or transitioning.
+- Rule updates, route-setting changes and TUN startup are mutually exclusive. The lock covers in-flight TUN recovery/start/stop, retained sessions and cleanup_error; renderer disablement is backed by main-process/controller checks.
 - Failed downloads, ZIP validation, parsing or conversion do not replace the active rule library.
 - Preserve the previous rule-library revisions and include the upstream Apache-2.0 license.
 
