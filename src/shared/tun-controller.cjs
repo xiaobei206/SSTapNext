@@ -62,7 +62,7 @@ class TunController {
         \`$requested = [guid]'\${normalizedId}'\`,
         "try {",
         "  $matches = @(Get-NetAdapter -IncludeHidden -ErrorAction Stop | Where-Object { try { ([guid]$_.InterfaceGuid).ToString('D') -eq $requested.ToString('D') } catch { $false } })",
-        "  if ($matches.Count -ne 1) { [ordered]@{ found = $false; matchCount = $matches.Count; inspectionError = 'Get-NetAdapter 未能唯一定位历史 GUID' } | ConvertTo-Json -Compress; exit 0 }",
+        "  if ($foundAdapters.Count -ne 1) { [ordered]@{ found = $false; matchCount = $foundAdapters.Count; inspectionError = 'Get-NetAdapter 未能唯一定位历史 GUID' } | ConvertTo-Json -Compress; exit 0 }",
         "  $adapter = $matches[0]",
         "  $addresses = @(Get-NetIPAddress -InterfaceIndex $adapter.ifIndex -ErrorAction SilentlyContinue | ForEach-Object { [string]$_.IPAddress } | Where-Object { $_ })",
         "  $rawStatus = [string]$adapter.Status",
@@ -77,7 +77,7 @@ class TunController {
         const result = await captureProcess(this.powershellPath, [
           '-NoLogo', '-NoProfile', '-NonInteractive', '-Command', script,
         ], { spawnImpl: this.spawnImpl, timeoutMs: 12000 });
-        const output = result.stdout.replace(/^\\uFEFF/, '').trim().split(/\\r?\\n/).filter(Boolean).at(-1);
+        const output = result.stdout.replace(/^\uFEFF/, '').trim().split(/\r?\n/).filter(Boolean).at(-1);
         const inspected = JSON.parse(output || 'null');
         if (inspected?.found === true) return inspected;
         powershellFailure = inspected?.inspectionError || 'PowerShell 未找到该网卡';
@@ -93,7 +93,7 @@ class TunController {
         const result = await captureProcess(agentPath, ['--tun-inspect-adapter', '--id', \`{\${normalizedId}}\`], {
           spawnImpl: this.spawnImpl, timeoutMs: 10000,
         });
-        const output = result.stdout.replace(/^\\uFEFF/, '').trim().split(/\\r?\\n/).filter(Boolean).at(-1);
+        const output = result.stdout.replace(/^\uFEFF/, '').trim().split(/\r?\n/).filter(Boolean).at(-1);
         const inspected = JSON.parse(output || 'null');
         if (inspected?.found === true) return inspected;
         throw new Error(inspected?.error || inspected?.inspectionError || 'Agent 未找到该网卡');
