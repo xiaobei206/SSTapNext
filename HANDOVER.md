@@ -85,3 +85,38 @@ The Windows build script runs Node tests, 54 protocol/mode/DNS sing-box combinat
 - cleanup_error 必须 fail-closed。不得删除未知网络适配器、Wintun 驱动、路由或 DNS，不得为了重连而重置网络。
 
 新对话遇到任何旧条目与当前规则冲突时，以 START HERE NEXT GPT.md 最后更新的当前状态、GitHub main 最新内容和用户本轮明确指令为准。历史开发日志保留当时记录，不要把历史操作指令重新当作当前命令。
+
+
+---
+
+# 0.3.13 批量节点检测与测速交接（2026-11-07，需求/设计阶段）
+
+用户希望节点管理页直接显示每个节点的 PING、TCPING、真实代理延迟和下载速度；支持一键全部检测/只测选中节点；同时测试节点数量可选 1/2/4/8/16/32；使用约 10 MB 测速文件；支持进度和取消。
+
+**设计文档：** `docs/CONCURRENT-NODE-TESTING.md`。状态是“需求已确认，设计已记录，尚未实现”；当前程序仍是 0.3.12，不得声称 0.3.13 功能已经写入或发布。
+
+## 当前测速为何有启动延迟
+
+- 当前 Renderer 只传单个 selectedNodeId。
+- Electron speed-test IPC 在没有同节点活动本地连接时调用单例 CoreController.connect(node)，生成临时配置，执行 sing-box check，spawn 核心，等待本地 SOCKS5 端口就绪，再通过 SOCKS5 下载测速，结束时 disconnect。
+- sing-box inbound 是 mixed、loopback 127.0.0.1，并显式 set_system_proxy:false；没有切换 Windows 系统代理设置。用户所说“先生成系统代理”实际是本地测速核心/SOCKS5 会话的启动过程。
+- 当前 speedTestThreads=1/2/4/8 是**单节点下载 Range 分段线程数**，不是并发节点数。
+- 当前测速会复用同一个已连接节点；如果当前已连接另一节点，会拒绝测速。批测不可用反复切换主 CoreController 的方式实现。
+
+## v2rayN 参考结论
+
+当前 v2rayN SpeedtestService.cs 的 Tcping 是直接对目标 address/port 执行并发 TCP connect；批量 MixedTest 使用 MixedConcurrencyCount 控制并发节点，每个节点独立测试核心会话和本地 SOCKS，做真实代理延迟/下载后关闭。其实现可作架构参考，但不可照搬为不受限的 32 进程风暴。
+
+## 下一版设计红线
+
+- 同时测速节点数 1/2/4/8/16/32，与单节点下载 Range 线程数必须分别命名、分别限流。
+- PING 是 ICMP，TCPING 是原始 TCP connect，真实代理延迟是通过本节点协议访问 HTTP；三个指标不能相互替代。
+- Hysteria2 使用 UDP/QUIC，TCPING 必须显示“不适用”。
+- 批测结果直接在节点管理列表显示，逐节点更新，保存最近值/时间，失败原因分开记录。
+- 新建专用 batch test runner/有界 worker pool，不得通过主 CoreController 来回切换节点；不自动断开/切换用户活动连接。
+- 测试核心只能监听 loopback 且 set_system_proxy:false；不得改 Windows Internet Settings、注册表系统代理或 PAC。
+- 批量任务可取消；取消后确认本批启动的进程退出、临时文件清理，不误杀主核心或 TUN Agent。
+- 保留 TUN active/transitioning/cleanup_error 安全边界；任何优化不能放宽 TUN 与网络清理保护。
+- 用户 10 MB 文件可按设置使用；16/32 并发会共享 500 Mbps 出口，需要在结果中明确这是并发带宽分摊值。
+
+正式实现升为 0.3.13；先更新专题设计和本文件/START HERE，再写代码。当前尚未修改任何运行时测速代码。
