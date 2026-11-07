@@ -30,6 +30,7 @@ function assertNotAborted(signal) {
 
 function parseIcmpOutput(stdout, stderr, sent = 3) {
   const output = String(stdout || '') + '\n' + String(stderr || '');
+  // Chinese labels can be garbled when Windows OEM output is decoded as UTF-8; match only ASCII RTT delimiters and unit.
   const times = [...output.matchAll(/[=<]\s*(\d+(?:\.\d+)?)\s*ms/gi)].map((match) => Number(match[1]));
   const lossMatches = [...output.matchAll(/(\d{1,3})\s*%\s*(?:loss|丢失)/gi)];
   const lossPercent = lossMatches.length

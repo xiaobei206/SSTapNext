@@ -62,17 +62,17 @@ test('parses localized Chinese Windows ping output', () => {
 
 test('parses RTT values when a Windows OEM-codepage prefix is garbled', () => {
   const output = [
-    '\\uFFFD\\uFFFD=45ms TTL=49',
+    '��=45ms TTL=49',
+    '��=43ms TTL=49',
     '\\uFFFD\\uFFFD=43ms TTL=49',
-    '\\uFFFD\\uFFFD=43ms TTL=49',
-  ].join('\\n');
+  ].join('\n');
   const parsed = parseIcmpOutput(output, '', 3);
   assert.equal(parsed.status, 'ok');
   assert.equal(parsed.received, 3);
   assert.equal(parsed.lossPercent, 0);
   assert.equal(parsed.averageMs, 43.67);
 
-  const subMillisecond = parseIcmpOutput('\\uFFFD<1ms TTL=49', '', 1);
+  const subMillisecond = parseIcmpOutput('�<1ms TTL=49', '', 1);
   assert.equal(subMillisecond.status, 'ok');
   assert.equal(subMillisecond.averageMs, 1);
 });
