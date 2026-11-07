@@ -4,8 +4,8 @@
 >
 > 仓库：https://github.com/xiaobei206/SSTapNext  
 > 唯一开发线：**main**  
-> 当前开发版本：**0.3.13（开发/验收中）**  
-最新正式发布版本：**0.3.12**  
+> 当前正式发布版本：**0.3.13**  
+上一正式版本：**0.3.12**  
 > 本文件是新对话的第一入口；如果本文件与 GitHub 实际状态不一致，以实时仓库、Actions 和 Release 为准，并先修正文档。
 
 ---
@@ -208,7 +208,7 @@ GitHub 最新状态每次都应现查：
 记录用户测试输出时对 IP、订阅、节点和秘密做脱敏；不得要求用户公开节点密码/URL。
 
 
-### P1 — 0.3.13：批量节点检测与测速（代码已实现，发布验收中）
+### 已交付 — 0.3.13：批量节点检测与测速（Release 已发布；用户实机验收待办）
 
 用户确认的需求：
 - 节点管理列表直接显示 PING、TCPING、真实代理延迟、下载速度和最近检测时间。
@@ -233,7 +233,7 @@ GitHub 最新状态每次都应现查：
 - apps/desktop/src/renderer/src/main.tsx、global.d.ts、style.css：节点列表 UI。
 - scripts/validate-singbox-configs.mjs：新增多节点真实核心配置校验；目标共 56 项（54 基础 + SSTap 规则 + batch config）。
 
-**当前正式 Release 仍是 0.3.12；0.3.13 Release 尚未发布。** 新对话接手必须先查 main 当前 SHA、对应 CI/Windows workflow 和 Release。用户 Windows 10/11 实机的 1/2/4/8/16/32 并发压力/系统代理不变/活动连接隔离/取消清理仍未验收。
+**v0.3.13 已正式发布**，Release 与三个资产见 `docs/RELEASE-0.3.13.md`。Node CI 97/97、lock 704/704、Windows 构建及 sing-box 56/56 均已通过。剩余用户 Windows 实机压力和安全验收必须单独执行，不可将 CI 结果当作通过。用户 Windows 10/11 实机的 1/2/4/8/16/32 并发压力/系统代理不变/活动连接隔离/取消清理仍未验收。
 
 ### P2 — 根据实测结果修复
 
@@ -289,3 +289,19 @@ GitHub 最新状态每次都应现查：
 - **下一位 GPT 第一件必须执行的具体动作：**
 
 **交接底线：** 下一位 GPT 不应需要询问“项目是什么、在哪个分支、现在什么版本、有哪些规则、上次做到哪一步”。本文件与开发日志必须直接回答这些问题。
+
+
+## 0.3.13 Release — 已正式发布并核验（2026-11-07）
+
+- Tag / Release：v0.3.13 — https://github.com/xiaobei206/SSTapNext/releases/tag/v0.3.13
+- Release target commit：`9d733967fb8c1280da6a1603b7ab9f733da6eccf`
+- 当前 main 文档接力 HEAD（更新前）：`5344ca830e2625f4575467e6ed234c58f16006ad`；与 Release target 的差异为 Release 后续文档同步，不改变 0.3.13 运行时代码。
+- Node CI：run `42352257931`（版本提交 SHA）和 run `42352323487`（当前文档 HEAD SHA）均 success；日志：`npm test 97/97 PASS`、`npm run verify:lock` 中 704 个依赖引用全部兼容。
+- Windows Release workflow：run `42352257898`，job `128342706123`，success；npm ci、release version 校验、package-lock 校验、Build-Windows、安装包验证、Release 发布及 artifact 上传均 success。
+- sing-box：当前 runtime 核心 1.14.4，真实配置矩阵 **56/56 PASS**（54 基础组合 + SSTap 本地规则集 + 多节点批测配置）。
+- 安装程序：`SSTap.Next-0.3.13-x64.exe`，174,891,825 bytes；SHA-256：`113105a99e5201f6f7a3013ee82ce8583bcc6f69f88fea9d969e35b52b15abcd`。
+- Blockmap：`SSTap.Next-0.3.13-x64.exe.blockmap`，182,868 bytes。
+- SHA-256 sidecar：`SSTap.Next-0.3.13-x64.exe.sha256`，93 bytes。
+- Workflow artifact：`SSTapNext-main-Windows-x64`，ID `13566081600`，175,084,704 bytes，尚未过期。
+- Release API 已核实三个资产均实际存在；安装程序 SHA-256 与 Windows 构建日志和 Release asset digest 一致。
+- **NOT RUN：** 用户 Windows 10/11 实机的 1/2/4/8/16/32 并发 CPU/内存/共享带宽压力、Windows 系统代理前后状态比对、正在使用的连接不被切换/中断、取消后进程/端口/临时配置完全清理，以及真实节点公网出口/协议连通性。不可用 CI 替代这些实测。

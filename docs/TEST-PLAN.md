@@ -2,7 +2,7 @@
 
 ## 当前版本与 CI 范围
 
-- 当前正式版本为 0.3.12，代码已合入 main，Tag v0.3.12 和 GitHub Release 已发布：https://github.com/xiaobei206/SSTapNext/releases/tag/v0.3.12。
+- 当前正式版本为 0.3.13；Release：https://github.com/xiaobei206/SSTapNext/releases/tag/v0.3.13。上一正式版本为 v0.3.12。
 - 这是个人项目，日常只在 main 开发，不建立 feature 分支或 PR。每项开发都必须先更新文档（目标、现状、设计、影响文件、安全约束、验收与测试），再修改代码；上下文结束前必须完成交接文档。
 - main 发布 commit：8f4be60d480e798bf3d17291230454df70674c86；该版本 Node CI run 42344552127、Windows Release run 42344552136 均成功。
 - 当前代码变更的验证证据：Node tests 86/86、package-lock 704/704、sing-box 55/55、Windows x64 Agent、TypeScript/Vite、NSIS 和 SHA-256 均通过。PR 最新功能 HEAD 的 run：42343664603 / 42343664600；main 发布 run：42344552127 / 42344552136。
@@ -12,7 +12,7 @@
 - 上述 CI/构建证据不等于用户 Windows 10/11 实机验收；真实规则库行为、节点出口、DNS、UDP/QUIC、TUN/Wintun 仍按 WINDOWS-ACCEPTANCE.md 逐项记录。
 
 
-## 0.3.13：批量节点检测与测速（代码已实现；自动化/Windows 验证进行中）
+## 0.3.13：批量节点检测与测速（已发布；用户实机验收进行前）
 
 完整设计与当前基线见 [CONCURRENT-NODE-TESTING.md](CONCURRENT-NODE-TESTING.md)。
 
@@ -83,3 +83,20 @@ Windows Build-Windows.ps1 使用本机 runtime/sing-box 中的真实核心执行
 - apps/desktop/src/main/index.cjs：可信 renderer IPC、节点 ID 校验、TUN 安全锁、nodeTestResults 加密持久化、节点删除结果清理、退出时取消并等待批测清理。
 - apps/desktop/src/renderer/src/main.tsx：节点页结果列、勾选/全选、同时测速数和 Range 线程参数、全部/选中、逐项进度、取消。
 - 以上为代码覆盖说明；实际通过数量和 Windows 构建结果必须以本次最新 main SHA 的 Actions logs 为准。用户 Windows 实机 1/2/4/8/16/32 压力测试、系统代理不变、活动连接隔离和取消清理仍 NOT RUN。
+
+
+
+## 0.3.13 Release — 已正式发布并核验（2026-11-07）
+
+- Tag / Release：v0.3.13 — https://github.com/xiaobei206/SSTapNext/releases/tag/v0.3.13
+- Release target commit：`9d733967fb8c1280da6a1603b7ab9f733da6eccf`
+- 当前 main 文档接力 HEAD（更新前）：`5344ca830e2625f4575467e6ed234c58f16006ad`；与 Release target 的差异为 Release 后续文档同步，不改变 0.3.13 运行时代码。
+- Node CI：run `42352257931`（版本提交 SHA）和 run `42352323487`（当前文档 HEAD SHA）均 success；日志：`npm test 97/97 PASS`、`npm run verify:lock` 中 704 个依赖引用全部兼容。
+- Windows Release workflow：run `42352257898`，job `128342706123`，success；npm ci、release version 校验、package-lock 校验、Build-Windows、安装包验证、Release 发布及 artifact 上传均 success。
+- sing-box：当前 runtime 核心 1.14.4，真实配置矩阵 **56/56 PASS**（54 基础组合 + SSTap 本地规则集 + 多节点批测配置）。
+- 安装程序：`SSTap.Next-0.3.13-x64.exe`，174,891,825 bytes；SHA-256：`113105a99e5201f6f7a3013ee82ce8583bcc6f69f88fea9d969e35b52b15abcd`。
+- Blockmap：`SSTap.Next-0.3.13-x64.exe.blockmap`，182,868 bytes。
+- SHA-256 sidecar：`SSTap.Next-0.3.13-x64.exe.sha256`，93 bytes。
+- Workflow artifact：`SSTapNext-main-Windows-x64`，ID `13566081600`，175,084,704 bytes，尚未过期。
+- Release API 已核实三个资产均实际存在；安装程序 SHA-256 与 Windows 构建日志和 Release asset digest 一致。
+- **NOT RUN：** 用户 Windows 10/11 实机的 1/2/4/8/16/32 并发 CPU/内存/共享带宽压力、Windows 系统代理前后状态比对、正在使用的连接不被切换/中断、取消后进程/端口/临时配置完全清理，以及真实节点公网出口/协议连通性。不可用 CI 替代这些实测。

@@ -20,3 +20,12 @@ The batch runner is separate from the main CoreController. Each node's test SOCK
 The Windows build adds a real sing-box configuration check for a two-node test batch, increasing the config checks from 55 to 56. Node regression tests cover ICMP parsing (including Chinese Windows output), TCPING, Range worker budgeting, inbound-to-outbound pinning, worker concurrency, failure isolation and cancellation cleanup.
 
 **Not covered by CI:** user-machine 1/2/4/8/16/32 concurrency stress testing (CPU, memory and shared bandwidth), proof that Windows system proxy remains unchanged, proof that an existing active connection is uninterrupted, and physical cleanup verification on Windows 10/11. These remain explicit acceptance items and must not be treated as passed until tested on the user's device.
+
+
+## Release and CI evidence (2026-11-07)
+
+- Release: https://github.com/xiaobei206/SSTapNext/releases/tag/v0.3.13; target commit `9d733967fb8c1280da6a1603b7ab9f733da6eccf`.
+- Node CI runs `42352257931` and latest documentation HEAD run `42352323487`: success; 97/97 tests and 704/704 lock references passed.
+- Windows release run `42352257898`, job `128342706123`: success. Actual sing-box 1.14.4 configuration checks: 56/56. Build, installer verification, Release publishing and artifact upload all succeeded.
+- Installer `SSTap.Next-0.3.13-x64.exe`: 174,891,825 bytes; SHA-256 `113105a99e5201f6f7a3013ee82ce8583bcc6f69f88fea9d969e35b52b15abcd`. Blockmap 182,868 bytes; SHA sidecar 93 bytes. Workflow artifact ID `13566081600`.
+- Windows physical device stress tests at concurrency 1/2/4/8/16/32, system proxy invariance, active connection isolation, cancellation process/port/config cleanup and real-node connectivity remain NOT RUN.

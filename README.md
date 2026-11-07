@@ -4,6 +4,8 @@
 >
 > **开发纪律：** 这是个人项目，只在 main 开发，不建立日常 feature 分支或 PR。所有开发必须先更新文档，再修改代码；上下文即将结束时先补齐交接记录。
 
+SSTap Next 0.3.13 is released: [GitHub Release](https://github.com/xiaobei206/SSTapNext/releases/tag/v0.3.13). The installer, blockmap and SHA-256 sidecar are attached to the release.
+
 SSTap Next is a Windows desktop proxy client built with Electron + React/TypeScript, a .NET 10 elevated Agent, and sing-box. It provides loopback SOCKS/HTTP proxy mode and Windows system-wide TUN mode.
 
 ## 0.3.13 changes

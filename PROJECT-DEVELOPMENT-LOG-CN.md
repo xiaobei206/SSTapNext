@@ -384,3 +384,15 @@
 - 此前 0.3.13 功能提交 SHA d954e6234ad7c11aef212829d4da8bf9cdafa9c8 的 Node CI run 42350210222：npm test 97/97 PASS、verify:lock 704 个依赖引用 PASS。但其 Windows workflow run 42350210215 虽显示 success，实际步骤显示 Verify package lock / Build Windows / installer verification / publish / artifact 上传均 skipped，因为 package version 仍为 0.3.12 且已有 v0.3.12 Release；**不能当作 Windows 安装包构建通过**。
 - 当前 0.3.13 version bump commit 随后触发最新 Node CI 和 Windows Release workflow；本记录更新时须重新核验该提交的 run ID、sha 和各步骤结果。
 - 用户 Windows 10/11 实机的 1/2/4/8/16/32 并发资源压力、Windows 系统代理保持不变、当前活动连接不被切换/中断、取消后的进程/端口/临时配置清理仍为 NOT RUN。
+
+
+## 2026-11-07 — 0.3.13 Release v0.3.13 已发布与产物核验
+
+- 当前正式 Release：v0.3.13，URL https://github.com/xiaobei206/SSTapNext/releases/tag/v0.3.13；Release target commit `9d733967fb8c1280da6a1603b7ab9f733da6eccf`。
+- Node CI run `42352257931`（version bump SHA）与 run `42352323487`（文档 HEAD SHA）均 success。日志确认 `npm test` 97/97 PASS，`npm run verify:lock` 704 个依赖引用全部兼容。
+- Windows Release run `42352257898` / job `128342706123` success；实际执行 Build-Windows、installer verification、Release creation 和 artifact upload，均非 skipped。
+- 核心配置检查：sing-box 1.14.4，56/56 PASS（54 基础组合 + SSTap local rules + concurrent batch config）。
+- EXE：`SSTap.Next-0.3.13-x64.exe`，174891825 bytes，SHA-256 `113105a99e5201f6f7a3013ee82ce8583bcc6f69f88fea9d969e35b52b15abcd`。
+- Blockmap：`SSTap.Next-0.3.13-x64.exe.blockmap`，182868 bytes；SHA sidecar 93 bytes。Release API 核实三项资产存在，installer digest 与 build log 一致。
+- Workflow artifact：`SSTapNext-main-Windows-x64`，ID `13566081600`，175084704 bytes，尚未过期。
+- 用户 Windows 10/11 实机验收仍为 NOT RUN：1/2/4/8/16/32 并发 CPU/内存/带宽压力、系统代理状态不变、当前连接隔离、取消清理、真实节点公网出口/协议握手。

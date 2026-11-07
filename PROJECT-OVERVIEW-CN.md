@@ -3,7 +3,7 @@
 ## 1. 项目标识与当前状态
 
 - GitHub 仓库：`https://github.com/xiaobei206/SSTapNext`；main 是唯一可信开发线。
-- 当前开发版本：**0.3.13**（节点管理页批量检测/测速）；上一正式 Release：`v0.3.12`。0.3.13 正在触发新版本的 Node CI 与 Windows Release 构建。
+- 当前正式版本：**0.3.13**；GitHub Release：https://github.com/xiaobei206/SSTapNext/releases/tag/v0.3.13。0.3.13 批量节点检测已发布；Node CI 97/97、lock 704/704、sing-box 56/56 与 Windows x64 安装包构建已通过。用户实机并发压力与连接隔离验收仍未完成。
 - 0.3.12 功能代码进入 main 的发布 commit：`8f4be60d480e798bf3d17291230454df70674c86`。其后的 main 提交为交接/文档维护，不代表另一个程序版本；新对话必须动态检查 main 最新 SHA。
 - 0.3.12 Release 已含 Windows x64 安装程序、blockmap 和 SHA-256。发布工作流 run `42344552136`、Node CI run `42344552127` 均成功；PR 最新功能 HEAD 的 Node 86/86、package-lock 704/704、sing-box 55/55、Agent、TS/Vite、NSIS 构建也通过。
 - 0.3.12 增加原版 FQrabbit SSTap `.rules` 转换、规则库在线更新、分流页面规则管理、游戏规则叠加和优先级保护。**真实 TUN/Wintun、规则库运行时行为和节点公网链路仍需用户 Windows 设备验收**，见 `docs/WINDOWS-ACCEPTANCE.md`。
@@ -15,7 +15,7 @@
 
 SSTap Next 是 Windows 代理客户端，提供节点/订阅导入、sing-box 本地 SOCKS/HTTP mixed 代理、节点测速、Windows 系统级 TUN、全局/绕过中国大陆/自定义规则分流、DNS 地址族策略和手动 sing-box 核心升级。
 
-### 当前 main 0.3.13 开发功能基线
+### 当前 main 0.3.13 正式功能基线
 
 - 节点协议：VLESS、Hysteria2、Shadowsocks SIP002、VMess、Trojan，以及已实现的 TLS/Reality/WebSocket/gRPC/混淆参数边界。
 - 订阅：单节点、多节点、Base64 列表、刷新、稳定 ID、来源管理、失败原子保留旧列表。
