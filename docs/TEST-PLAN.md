@@ -1,17 +1,26 @@
-## 0.3.15 设计阶段：实时流量统计与可读性
+## 0.3.15 实时流量统计与 UI 可读性（已实现，待自动化和实机验证）
 
-设计文档：`LIVE-TRAFFIC-AND-UI-READABILITY.md`。当前仅设计，代码与测试均 NOT STARTED。
+设计依据：LIVE-TRAFFIC-AND-UI-READABILITY.md。运行时代码已推送 main；尚未将自动化、Windows 构建或实机验收标记为通过。
 
-验收范围：
-- Clash API /connections 真实核心返回 `uploadTotal`、`downloadTotal`，本次上传与下载独立累计；速率差分、计时、连接重置及 final sample 正确。
-- API 仅监听 loopback + 每会话随机 secret；Renderer 不持有 API 地址或凭据。
-- 本地代理统计准确累加到对应 nodeId；TUN 包含 direct 时只展示系统会话总量，不写入节点累计。
-- 旧加密 state 缺少 nodeTrafficStats 时安全迁移；统计仅保存有效节点；节点删除清理孤儿数据；10 秒批量写盘及退出 flush。
-- 节点表所有指标排序稳定、缺失/超时/N/A 始终置底，且不改变选中/活动/勾选。
-- 全局普通文本与 `small` 至少 14px；侧栏版本标签与辅助文字相同字号/常规字重/低对比度；窄窗口、节点列表滚动不回归。
-- 在固定 sing-box 1.14.4 上增加启用 Clash API 的 Proxy 与 TUN 核心配置检查；不升级内核、不增加 npm 依赖。
+实现覆盖：
+- TrafficMonitor 基于固定核心 Clash API /connections 的 uploadTotal / downloadTotal 分别建立会话累计和速率。
+- Proxy/TUN 会话独立创建 endpoint、随机 secret、采样器；端点仅绑定 127.0.0.1。配置中的 secret 仅放在受保护的临时配置文件中（TUN runtime 目录 mode 0700、config mode 0600），不保存到加密状态文件、不通过 IPC 传递、不写日志。
+- 主进程每 10 秒批量写入加密节点累计；disconnect/exit final flush；旧状态缺失 nodeTrafficStats 自动迁移为空映射。
+- 节点个人累计只加本地代理流量；TUN 只展示系统会话总量（含直连），不计入所选节点。
+- Renderer 显示本次上下行速率、累计分项和时长；节点列表包含上传累计、下载累计、总计、稳定排序与缺失置底；版本号淡化，small 统一 14px。
 
-真实 Windows 10/11 验收需包含：本地代理实时上/下行速度与分开累计、断开 final/reconnect reset、多个节点累计不串账、重启持久化、TUN 直连与代理流量、API 失效状态、节点删除、字号与缩放布局。CI 不替代实机验收。
+本轮必须通过的自动化：
+- npm test：监控器方向/基线/增量/平滑速率/计数回退/API 故障/停止行为；代理/TUN 配置 loopback secret 校验。
+- npm run verify:lock：锁文件所有依赖引用无差异。
+- 固定 sing-box 1.14.4 真实配置矩阵：54 基础组合 + SSTap rule-set + batch proxy + proxy telemetry + TUN telemetry = 58 项。
+- Windows Release workflow：.NET 10 Agent、TypeScript/Vite、NSIS、installer、blockmap 和 SHA。
+- 代码审阅：TUN sessionId 与 Renderer 流量事件匹配；TUN 统计不记节点；排序不 mutate nodes/checkbox/selection；持久化写入竞态不丢新到的 traffic revision。
+
+Windows 实机验收（NOT RUN，CI 通过也不能替代）：
+- Local proxy：上下行速度分别随流量变化；本次上下行累计不串位；断开 final 值保存，重连清零；换节点累计独立；应用重启后仍保留。
+- TUN global / bypass-cn / rule：实时显示系统上传/下载速度和本次累计，明确“含直连”；节点历史累计不会因为 TUN 直连/代理发生虚假增加。
+- Clash API 短时失败只显示“暂不可用”，累计不清零；secret 不出现在 IPC/日志；断开后端口退出、临时配置清理。
+- 全部页面普通文字及 small 至少 14px；左下角版本号 14px、常规字重、弱颜色；节点列表横向滚动、缩放和窄窗口正常。
 
 # SSTap Next 0.3.14 — 测试计划与验证边界
 
