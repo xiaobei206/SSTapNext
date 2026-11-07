@@ -1,3 +1,16 @@
+## 0.3.13 — 节点管理页批量检测与测速
+
+- 节点列表新增一键全部检测、勾选节点检测、全选、取消与逐节点进度。
+- 节点列表直接显示 ICMP PING、TCPING、真实代理 HTTP 延迟、下载 Mbps 和最近检测时间；Hysteria2 的 TCPING 显示不适用。
+- 新增独立批量检测 runner；每批最多 32 节点只启动一个临时 sing-box 进程，每个节点通过独立 loopback mixed inbound 绑定自身 outbound，未匹配路由 final=block。
+- 测速不调用主 CoreController，不切换/断开用户当前连接，不修改 Windows 系统代理；TUN 不安全状态时拒绝启动批测。
+- 新增批量节点并发 1/2/4/8/16/32 和 Range 下载线程 1/2/4/8/16/32；总 Range worker 预算上限 64，支持任意节点数量并向下选取有效线程档位。
+- 新增按 nodeId 加密保存检测结果，最多保留 512 个节点记录，并在保存状态时清理已删除节点的孤儿结果。
+- Build-Windows 实际 sing-box 配置检查新增多节点批测配置，总计 56 组（54 基础 + SSTap 规则 + 批测配置）。
+
+自动化构建状态与 Windows 实机验收边界见 docs/RELEASE-0.3.13.md 和 docs/WINDOWS-ACCEPTANCE.md。1/2/4/8/16/32 并发压力、系统代理不变、活动连接隔离和取消清理仍需在用户 Windows 设备实测。
+
+
 ## 0.3.12 — SSTap 经典规则库转换与应用内更新
 
 - 新增 FQrabbit/SSTap-Rule 原生 `.rules` 解析器：保留第三字段动作（0=代理、1=直连），支持 IPv4/IPv6 CIDR、重复去除和整文件校验。

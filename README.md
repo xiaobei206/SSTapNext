@@ -1,10 +1,17 @@
-# SSTap Next 0.3.12 — Windows TUN + live SSTap rules
+# SSTap Next 0.3.13 — batch node testing + live SSTap rules
 
 > **新对话 / 新 GPT 接手必读：** [START HERE NEXT GPT.md](START%20HERE%20NEXT%20GPT.md)。该文件是仓库第一入口，写有当前版本、实际 Release 状态、架构、安全边界、未完成验收和下一步。
 >
 > **开发纪律：** 这是个人项目，只在 main 开发，不建立日常 feature 分支或 PR。所有开发必须先更新文档，再修改代码；上下文即将结束时先补齐交接记录。
 
 SSTap Next is a Windows desktop proxy client built with Electron + React/TypeScript, a .NET 10 elevated Agent, and sing-box. It provides loopback SOCKS/HTTP proxy mode and Windows system-wide TUN mode.
+
+## 0.3.13 changes
+
+- Adds batch PING, TCPING, real proxy latency and download throughput directly in the node-management list.
+- Supports test-all / selected nodes, per-node live updates, cancellation, and concurrency choices 1/2/4/8/16/32.
+- Uses one isolated sing-box process per batch, with loopback-only inbound endpoints pinned to each node outbound. The test runner never changes the Windows system proxy or switches the user's active connection.
+- Caps aggregate HTTP Range workers at 64 and persists per-node results in encrypted application state.
 
 ## 0.3.12 changes
 

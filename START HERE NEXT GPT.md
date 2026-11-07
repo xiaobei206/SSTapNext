@@ -41,8 +41,8 @@
 
 - GitHub：xiaobei206/SSTapNext
 - 当前开发入口：main
-- 程序版本：0.3.12
-- 正式 Tag：v0.3.12
+- 当前开发 package version：0.3.13
+- 最新正式 Tag：v0.3.12
 - 正式 Release：https://github.com/xiaobei206/SSTapNext/releases/tag/v0.3.12
 - 0.3.12 功能代码发布 commit：8f4be60d480e798bf3d17291230454df70674c86
 - 0.3.12 已经发布，不是“等待构建”、不是“PR 尚未合并”。PR #1 已 Squash merge，仅属历史迁移记录。

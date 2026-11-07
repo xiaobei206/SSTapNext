@@ -372,3 +372,15 @@
 1. 先核验当前 main HEAD 的 Node CI 具体失败/通过测试数，以及 Windows workflow 的 56 项 sing-box check、Agent、TypeScript/Vite、NSIS、SHA 步骤。
 2. Node CI 通过后，将 package.json/package-lock、Agent、Build script/doctor、README/CHANGELOG 和 docs/RELEASE-0.3.13.md 一次性同步正式版本号 0.3.13。
 3. 验证 v0.3.13 Release 与 EXE、blockmap、SHA-256 三个资产；如 workflow 失败，先修复并递增修订版本，不能手工宣称发布成功。
+
+
+## 2026-11-07 — 0.3.13 版本号同步与发布构建阶段
+
+- package.json、package-lock.json 根版本更新为 0.3.13。
+- src/agent/SstapNext.Agent/SstapNext.Agent.csproj 的 Version、Program.cs Agent banner 更新为 0.3.13。
+- scripts/Build-Windows.ps1 构建说明更新为 56 组核心配置；完成 banner 改为 0.3.13。
+- scripts/doctor.mjs 去掉长期错误的 0.3.7 硬编码，改为校验 package.json 与 package-lock 根版本是否一致。
+- README、CHANGELOG、PROJECT-OVERVIEW、START HERE、HANDOVER、TEST-PLAN 更新为 0.3.13 实施状态；docs/RELEASE-0.3.13.md 已创建。
+- 此前 0.3.13 功能提交 SHA d954e6234ad7c11aef212829d4da8bf9cdafa9c8 的 Node CI run 42350210222：npm test 97/97 PASS、verify:lock 704 个依赖引用 PASS。但其 Windows workflow run 42350210215 虽显示 success，实际步骤显示 Verify package lock / Build Windows / installer verification / publish / artifact 上传均 skipped，因为 package version 仍为 0.3.12 且已有 v0.3.12 Release；**不能当作 Windows 安装包构建通过**。
+- 当前 0.3.13 version bump commit 随后触发最新 Node CI 和 Windows Release workflow；本记录更新时须重新核验该提交的 run ID、sha 和各步骤结果。
+- 用户 Windows 10/11 实机的 1/2/4/8/16/32 并发资源压力、Windows 系统代理保持不变、当前活动连接不被切换/中断、取消后的进程/端口/临时配置清理仍为 NOT RUN。

@@ -153,3 +153,14 @@ The Windows build script runs Node tests, 54 protocol/mode/DNS sing-box combinat
 - 0.3.13 需要确认本次最新 SHA 对应的 Node CI、Windows workflow 和 56 项 sing-box check，之后正式升版、发布。
 - 用户 Windows 实机仍需验收 1/2/4/8/16/32 并发 CPU、内存、共享带宽、系统代理不变、用户连接未中断、取消后的进程/端口/临时文件清理。
 - 下一对话首先刷新 GitHub main SHA、package version、最新 Actions run/job/step 和 Release 资产；不复用历史 workflow 成功状态。
+
+
+## 0.3.13 正式版本化与 Release 交接（2026-11-07）
+
+- package.json / package-lock.json 根版本同步为 0.3.13。
+- .NET Agent csproj Version 与 Program banner 同步为 0.3.13。
+- scripts/Build-Windows.ps1 显示 56 组 sing-box 配置检查和 0.3.13 构建完成信息。
+- scripts/doctor.mjs 项目版本检查不再硬编码过时的 0.3.7，而是检查 package.json 与 package-lock 根版本一致性。
+- docs/RELEASE-0.3.13.md 已存在；README、CHANGELOG、PROJECT-OVERVIEW 已更新为 0.3.13 功能说明。
+- 0.3.12 是上一正式 Release。0.3.13 要以最新 package bump commit 对应 CI/Windows workflow 成功，以及 Release API 真实列出 installer/blockmap/SHA-256 三项资产为完成判据。
+- Windows 10/11 用户实机 1/2/4/8/16/32 压力、代理不变、活动连接隔离和取消清理仍未执行。
