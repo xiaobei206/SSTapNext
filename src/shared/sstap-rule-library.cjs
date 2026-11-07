@@ -302,8 +302,17 @@ async function getEnabledSstapRuleSets(userDataPath, enabledRuleIds = [], mode =
     ids.add(cn.id);
   }
   const selected = current.manifest.rules.filter((item) => ids.has(item.id));
+  // The automatic broad China IP bypass must come after explicitly selected
+  // game rules. Otherwise an overlapping CN CIDR would match Direct first and
+  // silently defeat a user's game-specific Proxy rule.
+  const ordered = mode === 'bypass-cn'
+    ? [
+      ...selected.filter((item) => item.fileName.toLowerCase() !== 'bypasscnandlan.rules'),
+      ...selected.filter((item) => item.fileName.toLowerCase() === 'bypasscnandlan.rules'),
+    ]
+    : selected;
   const result = [];
-  for (const item of selected) {
+  for (const item of ordered) {
     if (!/^sstap-[a-f0-9]{16}$/.test(item.id) || !/^rules\/sstap-[a-f0-9]{16}\.json$/.test(item.outputFile)) {
       throw new Error(`SSTap 规则清单包含不安全文件路径：${item.fileName}`);
     }
