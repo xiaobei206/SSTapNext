@@ -415,7 +415,7 @@ function NodesPage(props: {
   </div>;
 }
 
-function RulesPage({ mode, saveMode, busy, customRulesText, setCustomRulesText, saveCustomRules, tunConnected, ruleLibrary, ruleLibraryBusy, ruleSearch, setRuleSearch, updateRuleLibrary, enabledRuleIds, toggleSstapRule }: {
+function RulesPage({ mode, saveMode, busy, customRulesText, setCustomRulesText, saveCustomRules, tunConnected, tunLocked, ruleLibrary, ruleLibraryBusy, ruleSearch, setRuleSearch, updateRuleLibrary, enabledRuleIds, toggleSstapRule }: {
   mode: SstapState['settings']['mode'];
   saveMode: (mode: SstapState['settings']['mode']) => void;
   busy: boolean;
