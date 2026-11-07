@@ -1,39 +1,12 @@
-## 0.3.16 紧急修复：TUN Agent 拒绝 Clash API（需发布新版本）
+## 0.3.16 发布完成：TUN Clash API 白名单修复 + 实时流量功能
 
-- 用户实测 v0.3.15：启动系统接管时报 `InvalidDataException: TUN 配置包含不允许的 endpoint 或外部控制接口。`。
-- 根因：`src/agent/SstapNext.Agent/Core/TunRuntime.cs` 把 `experimental.clash_api` 整体拒绝，和本轮 TUN 流量统计配置冲突。
-- 已修复：继续禁用根级 `endpoints`，只允许 `127.0.0.1:<合法端口>`、64 hex secret 和恰好两个 API 字段 `external_controller`/`secret`；拒绝附加字段、重复字段、LAN/0.0.0.0/IPv6/不合法端口或密钥。其余 TUN 安全验证保持不变。
-- 文档：`docs/RELEASE-0.3.16.md`、`docs/LIVE-TRAFFIC-AND-UI-READABILITY.md`。
-- 版本目标：**0.3.16**。GitHub 的 v0.3.15 已存在，不能在相同版本下替换安装包。
-- 0.3.15 后续 main SHA 的 Windows workflow run 42364620391 success，但 Verify lock / Build Windows / Verify installer 都 skipped；不得把它作为修复已构建的证据。
-- 下一步：同步 package/lock、Agent banner/csproj、Build-Windows 输出、README/CHANGELOG/START HERE/项目总览，然后触发 0.3.16 全链路构建。需要看到实际 Build-Windows、58/58 sing-box check、.NET Agent、TS/Vite、NSIS、EXE、blockmap、SHA 和新 Release 资产全成功。
-- Windows 实机当前仍 NOT RUN；用户安装 0.3.16 后需要重测系统 TUN 启动与流量采样。
-
-## 0.3.15 实现进度（当前 main）：实时流量统计 + 节点累计 + UI 可读性
-
-设计文档：`docs/LIVE-TRAFFIC-AND-UI-READABILITY.md`；先行设计提交：`f592fc721d2b097f35fc44eb5ef5aea8ecfa6cf6`。功能代码已进入 main，正式验证/发布尚未完成。
-
-### 已实现（源码已推 main）
-- 新增 `src/shared/singbox-traffic.cjs` 与测试：从 sing-box 1.14.4 Clash API `/connections` 读取 `uploadTotal` / `downloadTotal`，拆分累计和速率；随机端口、随机 Bearer 密钥、loopback-only。
-- 本地代理和 TUN controller 已分别接入统计生命周期，stop 时 final poll。
-- 主进程加密状态新增 `nodeTrafficStats`，只累计本地代理流量；10 秒批量写盘，断开/退出 flush；旧状态字段缺省迁移为空对象。
-- 首页显示下载速度、上传速度、本次下载累计、本次上传累计、时长；TUN 标注“含直连流量”。
-- 节点管理增加上传累计、下载累计、总流量，PING/TCPING/代理延迟/下载速度/上下载流量/总量/最近检测均可点击排序，缺失值置底。
-- 版本号淡化为普通 14px 辅助文字；`small` 全局明确 14px；节点表格扩大横向滚动范围。
-- 当前 package/lock/Agent 目标版本为 0.3.16；最新公开 Release 为 v0.3.15。v0.3.15 TUN Agent 的 Clash API 白名单缺陷由 0.3.16 修复。
-
-### 重要边界与安全
-- 本地代理流量按 active nodeId 计入节点历史上/下行；TUN 统计只显示该系统会话总量（包含 direct 流量），不归属到节点。
-- API 只监听 127.0.0.1，随机 Bearer secret 仅供主进程内采样器使用。代理临时配置/TUN 会话配置文件含 API 端点和 secret，文件位于受权限保护的运行目录；不写入 state.enc.json、不经 IPC 返回、不写入日志，TUN 清理会删除其会话目录。
-- 采样每秒一次；节点累计最多 10 秒批量写入加密状态，并在断开/退出 flush。
-- 不升级 sing-box、不修改 Windows 系统代理、不改变 TUN Agent fail-closed 清理逻辑。
-
-### 尚未完成
-- Node 自动化 / package-lock、固定 sing-box 1.14.4 的 58 组配置检查、Windows Agent、TypeScript/Vite、NSIS / SHA、GitHub Actions 当前 HEAD 状态核验。
-- Windows 10/11 实机代理上/下行、断开 final/reconnect reset、跨重启节点累计、TUN 含直连统计、API 失败、字号布局与节点删除验收。
-- 只有对应 CI 和 Release 资产全部实际通过后才能把 0.3.15 标记已发布；CI 不等于用户实机验收。
-
-下一步：先完成本次代码检查和 Actions 结果；遇到失败先修复，再更新版本说明与交接。
+- 最新 Release：v0.3.16，https://github.com/xiaobei206/SSTapNext/releases/tag/v0.3.16。
+- 修复根因：Agent 先前一律拒绝 `experimental.clash_api`。现在只接受 `127.0.0.1:<合法端口>`、64 hex secret 和恰好 `external_controller` / `secret` 两字段；根级 endpoints 继续禁止，其他 TUN 安全检查保持不变。
+- Node CI run 42365153162：107/107 tests PASS，lock 704/704 PASS。
+- Windows Release run 42365153123 / job 128381544820：success，真实执行完整构建和 Release 步骤；sing-box 58/58；Agent、TS/Vite、NSIS、安装包、blockmap、SHA 和 artifact 上传成功。
+- EXE：174,898,679 bytes，SHA-256 `68c7094f74ef50c85ca96e9e07110be9397703fbaa915233a4634e5d8292261d`。Blockmap 182,455 bytes，SHA `93322a3e2a23b9c9e37f2bcc3a73cfb25050399d81149d2b702c02b6bebf8b36`。SHA sidecar 93 bytes，asset digest `2c93e466bc6c92851ff55766de328c272c303aaf009e0f56bb92de18ff6caf40`。
+- Workflow artifact ID 13571501499，175,090,820 bytes。
+- **仍待用户实机：** 安装 0.3.16 后连接系统 TUN，验证错误消失、实时上下行累计、direct 不计入节点历史累计和安全断开清理。
 
 # SSTap Next — 当前交接摘要（2026-11-07）
 

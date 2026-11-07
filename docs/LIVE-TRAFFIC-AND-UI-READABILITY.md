@@ -114,3 +114,11 @@
 - 已在 main 发现并修复 Agent 拒绝 `experimental.clash_api` 的不兼容：根级 `endpoints` 继续禁止，TUN Clash API 只允许 `127.0.0.1:<valid port>` + 64 位 hex secret，且只接受 `external_controller` 和 `secret` 两字段；其他 external controller 形态仍 fail-closed。
 - v0.3.15 Release 已存在且不应覆盖。此次修复版本目标提升到 **0.3.16**，完整发布计划写入 `docs/RELEASE-0.3.16.md`。
 - main 提交 `8efe77ab7d309057a1c8d071a2f2b52610979ab1` 的 Windows Actions 显示 success 但锁校验/构建/安装包校验步骤被 skip（因为 v0.3.15 已存在），故不能当成本修复的安装包验证证据。0.3.16 必须走新版本完整构建与 Release 资产核验。
+
+## 9. 0.3.16 发布验证结果
+
+- 修复提交：`8efe77ab7d309057a1c8d071a2f2b52610979ab1`；正式发布版本化提交：`6245eab7e953ff13c0f765691a8ad1692e15f14e`。
+- Node CI run 42365153162：107/107 tests；lock 704/704。
+- Windows Release run 42365153123 / job 128381544820：sing-box 58/58，.NET Agent、TS/Vite、NSIS、installer SHA、Release asset 和 artifact 成功。
+- EXE SHA-256 `68c7094f74ef50c85ca96e9e07110be9397703fbaa915233a4634e5d8292261d`。
+- 实际 Windows TUN 连接、流量采样及断开清理仍需要用户机器验收；CI 不能代替实测。

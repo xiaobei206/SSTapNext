@@ -4,16 +4,16 @@
 >
 > **开发纪律：** 这是个人项目，只在 main 开发，不建立日常 feature 分支或 PR。所有开发必须先更新文档，再修改代码；上下文即将结束时先补齐交接记录。
 
-Latest published release: **0.3.15** ([GitHub Release](https://github.com/xiaobei206/SSTapNext/releases/tag/v0.3.15)). Main target: **0.3.16**, which fixes the TUN Agent rejecting the loopback-only Clash API; do not treat v0.3.15 as fixed for system TUN traffic statistics.
+Latest release: **0.3.16** ([GitHub Release](https://github.com/xiaobei206/SSTapNext/releases/tag/v0.3.16)). The Windows x64 installer, blockmap and SHA-256 sidecar are published.
 
 SSTap Next is a Windows desktop proxy client built with Electron + React/TypeScript, a .NET 10 elevated Agent, and sing-box. It provides loopback SOCKS/HTTP proxy mode and Windows system-wide TUN mode.
 
-## 0.3.16 hotfix in progress
+## 0.3.16 changes
 
 - Fixes the elevated TUN Agent allowlist to permit only the per-session Clash API bound to `127.0.0.1:<valid port>` with a 64-hex random secret and exactly two fields: `external_controller` and `secret`.
 - Continues to reject root-level `endpoints`, extra or duplicate Clash API fields, LAN / wildcard / IPv6 listeners, invalid ports and malformed secrets.
 - Keeps the existing TUN route, DNS, config hash, session path, Wintun cleanup and fail-closed restrictions unchanged.
-- Full Node CI, sing-box 58/58 config validation, .NET Agent, TypeScript/Vite, NSIS, installer, blockmap and SHA checks are pending this version's build. Real Windows TUN acceptance remains NOT RUN.
+- Node CI 107/107 and lock 704/704 passed; Windows build completed sing-box 58/58 checks, .NET Agent, TypeScript/Vite, NSIS, installer, blockmap and SHA verification. Real Windows TUN acceptance remains NOT RUN.
 
 ## 0.3.15 changes
 

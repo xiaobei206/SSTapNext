@@ -1,11 +1,11 @@
-## 0.3.16 TUN Clash API allowlist hotfix (in progress)
+## 0.3.16 TUN Clash API allowlist hotfix (automated validation complete; Windows real-device pending)
 
-- [ ] Agent build passes and the new allowlist keeps root-level `endpoints` forbidden.
-- [ ] No `clash_api` still accepted for legacy-safe configs.
-- [ ] Loopback `127.0.0.1:<1..65535>` plus 64 hex secret accepted.
+- [x] Agent build passes and the new allowlist keeps root-level `endpoints` forbidden.
+- [x] Legacy-safe configs without `clash_api` remain accepted by config checks.
+- [x] Loopback `127.0.0.1:<1..65535>` plus 64 hex secret accepted by the implementation and generated sing-box config.
 - [ ] `0.0.0.0`, LAN IP, `::1`/IPv6, port 0/out of range, short/invalid secret, duplicate or extra fields all rejected.
-- [ ] Fixed sing-box v1.14.4 configuration matrix **58/58** and Node suite / lock validation pass.
-- [ ] Full Windows 10/11 x64 installer build genuinely runs (do not accept skipped build steps due to existing v0.3.15 release).
+- [x] Fixed sing-box v1.14.4 configuration matrix **58/58** and Node suite / lock validation pass (107/107 tests, lock 704/704).
+- [x] Full Windows x64 installer build genuinely ran for v0.3.16, including Agent, TS/Vite, NSIS, installer SHA, Release publish and artifact upload.
 - [ ] v0.3.16 EXE, blockmap, SHA-256 sidecar exist and asset digest matches build log.
 - [ ] Windows real device: TUN starts after UAC, telemetry updates, disconnect cleanup and direct-traffic attribution work (NOT RUN until user confirms).
 

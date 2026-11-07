@@ -510,3 +510,12 @@
 - 文档先行：`docs/RELEASE-0.3.16.md` 与设计文档增补已提交；版本下一步必须递增至 0.3.16，因为 v0.3.15 Release 已存在。
 - 0.3.15 后续 main SHA 的 Windows workflow run 42364620391 success，但 verify lock、build/package、installer SHA steps 都 skipped；不可当成新修复包验证通过。
 - 本节更新时 0.3.16 的完整自动化与安装包仍待执行；Windows 真机 TUN 再验也 NOT RUN。
+
+## 2026-11-07 — 0.3.16 已正式发布：TUN Agent Clash API 白名单修复
+
+- 用户实测 v0.3.15 启动 TUN 报 Agent 拒绝外部控制接口。根因是一律拒绝 `experimental.clash_api`；0.3.16 只允许 127.0.0.1、合法端口、64 hex secret 和两个指定字段，根级 endpoints 继续禁止。
+- Release：https://github.com/xiaobei206/SSTapNext/releases/tag/v0.3.16；target commit `6245eab7e953ff13c0f765691a8ad1692e15f14e`。
+- Node CI run 42365153162：107/107 PASS；lock 704/704 PASS。
+- Windows Release workflow run 42365153123 / job 128381544820：success；sing-box 58/58、.NET 10 Agent、TypeScript/Vite、NSIS、installer SHA、Release 上传和 artifact 全成功。
+- EXE 174,898,679 bytes，SHA-256 `68c7094f74ef50c85ca96e9e07110be9397703fbaa915233a4634e5d8292261d`；blockmap 182,455 bytes，SHA-256 `93322a3e2a23b9c9e37f2bcc3a73cfb25050399d81149d2b702c02b6bebf8b36`；sidecar 93 bytes，asset digest `2c93e466bc6c92851ff55766de328c272c303aaf009e0f56bb92de18ff6caf40`。
+- 用户 Windows 实机安装 0.3.16 后的系统 TUN 启动、实时流量统计和断开清理仍 NOT RUN，待用户确认。
