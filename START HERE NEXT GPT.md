@@ -206,7 +206,20 @@ GitHub 最新状态每次都应现查：
 
 记录用户测试输出时对 IP、订阅、节点和秘密做脱敏；不得要求用户公开节点密码/URL。
 
-### P1 — 根据实测结果修复
+### P1 — 下一版 0.3.13：批量节点检测与测速（需求已登记，尚未写代码）
+
+用户明确提出：
+- 节点管理列表直接显示 PING、TCPING、真实代理延迟、下载速度和最近检测时间。
+- 一键检测全部节点，也能只测选中的节点；逐节点实时回填；支持取消。
+- 批量并发节点数可选 1 / 2 / 4 / 8 / 16 / 32。
+- 用户使用 500 Mbps 宽带和约 10 MB 测速文件，希望多个节点一起测，保留每节点的独立测速结果。
+- 当前单节点测速的启动慢要优化；测速不得切换或修改 Windows 系统代理，也不得中断用户正在使用的节点。
+
+**设计和当前实现分析已写入 docs/CONCURRENT-NODE-TESTING.md。新对话必须先读该文档。**
+现有 speedTestThreads 是单节点 HTTP Range 分段 worker 数（目前 1/2/4/8），不要与“同时测速节点数”混为一个设置。当前测速调用主 CoreController.connect()，生成临时单节点 sing-box 配置、sing-box check、启动进程、等待本地 SOCKS5 就绪，下载后断开；sing-box mixed inbound 已明确 set_system_proxy=false，只监听 127.0.0.1。当前不是设置 Windows 系统代理，但启动临时核心确实增加了前置耗时。
+下一步：按设计文档实现独立 batch-node-test runner / worker pool，优先实现 ICMP + TCPING、节点列表结果列，再接入真实代理延迟与 10 MB 下载测速；保持 loopback-only、set_system_proxy=false、主连接隔离、TUN 安全锁、取消清理。正式代码迭代升至 0.3.13，并同步所有版本字段和 release notes。**本项当前只有设计文档，没有代码实现，也没有 0.3.13 Release。**
+
+### P2 — 根据实测结果修复
 
 一旦发现问题：
 
