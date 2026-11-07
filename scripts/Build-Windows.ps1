@@ -45,7 +45,7 @@ if ($LASTEXITCODE -ne 0) { throw 'Node 自动化测试失败。' }
 $coreVersionOutput = & $core version 2>&1
 if ($LASTEXITCODE -ne 0) { throw '当前 runtime/sing-box/sing-box.exe 无法执行 version。' }
 $coreVersionLine = ($coreVersionOutput | Select-Object -First 1).ToString().Trim()
-Write-Host "[3/8] 使用当前核心（$coreVersionLine）检查 54 份协议/模式/DNS 地址族组合配置及 1 份 SSTap 本地规则集配置..." -ForegroundColor Cyan
+Write-Host "[3/8] 使用当前核心（$coreVersionLine）检查 54 份协议/模式/DNS 地址族组合配置、1 份 SSTap 本地规则集配置及 1 份多节点批测配置..." -ForegroundColor Cyan
 & node (Join-Path $PSScriptRoot 'validate-singbox-configs.mjs') --core $core 2>&1
 if ($LASTEXITCODE -ne 0) { throw 'sing-box 配置验收失败；已停止打包。' }
 
@@ -85,7 +85,7 @@ Write-Host '[8/8] 最终环境诊断...' -ForegroundColor Cyan
 if ($LASTEXITCODE -ne 0) { throw '最终环境诊断失败。' }
 
 Write-Host ''
-Write-Host '[SUCCESS] SSTap Next 0.3.12 构建流程完成。' -ForegroundColor Green
+Write-Host '[SUCCESS] SSTap Next 0.3.13 构建流程完成。' -ForegroundColor Green
 if ($installer) {
     $installerHash = (Get-FileHash -LiteralPath $installer.FullName -Algorithm SHA256).Hash
     Write-Host "安装包：$($installer.FullName)"

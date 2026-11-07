@@ -6,6 +6,8 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
+const lock = JSON.parse(fs.readFileSync(path.join(root, 'package-lock.json'), 'utf8'));
+const lockVersion = lock.packages?.['']?.version || lock.version;
 const checks = [];
 
 function add(name, status, detail) { checks.push({ name, status, detail }); }
@@ -13,7 +15,7 @@ function exists(relative) { return fs.existsSync(path.join(root, relative)); }
 
 const nodeMajor = Number(process.versions.node.split('.')[0]);
 add('Node.js', nodeMajor >= 22 ? 'PASS' : 'FAIL', `v${process.versions.node}（要求 >=22）`);
-add('项目版本', pkg.version === '0.3.7' ? 'PASS' : 'WARN', `${pkg.productName || pkg.name} ${pkg.version}`);
+add('项目版本', pkg.version === lockVersion ? 'PASS' : 'FAIL', `package.json ${pkg.version} / package-lock.json ${lockVersion}`);
 add('npm 依赖', exists('node_modules') ? 'PASS' : 'WARN', exists('node_modules') ? 'node_modules 已存在' : '尚未安装；运行 npm.cmd install');
 add('sing-box 核心', exists('runtime/sing-box/sing-box.exe') ? 'PASS' : 'WARN', exists('runtime/sing-box/sing-box.exe') ? 'runtime/sing-box/sing-box.exe' : '尚未下载；运行 scripts\\Fetch-SingBox.ps1');
 add('.NET Agent', exists('artifacts/agent-win-x64/SstapNext.Agent.exe') ? 'PASS' : 'WARN', exists('artifacts/agent-win-x64/SstapNext.Agent.exe') ? '已发布' : '尚未发布；运行 scripts\\Publish-Agent.ps1');

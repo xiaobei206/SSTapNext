@@ -1,7 +1,7 @@
 {
   "name": "sstap-next",
   "productName": "SSTap Next",
-  "version": "0.3.12",
+  "version": "0.3.13",
   "private": true,
   "description": "A modern SSTap-style Windows client powered by sing-box.",
   "main": "apps/desktop/src/main/index.cjs",
