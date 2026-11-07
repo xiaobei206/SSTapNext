@@ -89,6 +89,7 @@ declare global {
     startedAt?: string | null;
     sampledAt?: string;
     status: 'starting' | 'ok' | 'unavailable' | 'stopped';
+    hasBaseline: boolean;
     active: boolean;
     uploadBytes: number;
     downloadBytes: number;
