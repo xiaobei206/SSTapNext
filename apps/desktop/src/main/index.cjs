@@ -533,10 +533,6 @@ ipcMain.handle('sstap:settings-save', async (event, patch) => {
   }
   if (patch.dnsStrategy !== undefined) {
     if (!['ipv4_only', 'prefer_ipv4', 'prefer_ipv6'].includes(patch.dnsStrategy)) throw new Error('DNS 地址族策略无效');
-    const tunStatus = tunController?.getStatus();
-    if (tunStatus && ['awaiting_uac', 'starting', 'running', 'stopping'].includes(tunStatus.status)) {
-      throw new Error('请先断开系统 TUN，再修改 DNS 地址族策略。');
-    }
     state.settings.dnsStrategy = patch.dnsStrategy;
   }
   if (patch.speedTestThreads !== undefined) {
@@ -551,9 +547,10 @@ ipcMain.handle('sstap:settings-save', async (event, patch) => {
   }
   const changesRoutingSettings = patch.mode !== undefined
     || patch.customRulesText !== undefined
-    || patch.enabledRuleIds !== undefined;
+    || patch.enabledRuleIds !== undefined
+    || patch.dnsStrategy !== undefined;
   if (changesRoutingSettings && (ruleLibraryUpdating || getTunController().isRuleLibraryMutationLocked())) {
-    throw new Error('系统 TUN 尚未确认完全停止，或 SSTap 规则库正在更新；分流模式、自定义规则和游戏规则已锁定。');
+    throw new Error('系统 TUN 尚未确认完全停止，或 SSTap 规则库正在更新；分流模式、自定义规则、游戏规则和 DNS 策略已锁定。');
   }
 
   if (patch.customRulesText !== undefined) {
