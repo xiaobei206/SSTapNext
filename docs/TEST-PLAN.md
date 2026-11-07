@@ -2,10 +2,14 @@
 
 ## 当前版本与 CI 范围
 
-- main 当前仍为 0.3.11；0.3.12 位于 PR #1 的功能分支，合并前只以 PR 最新 HEAD 对应的 Actions 结果作为验收证据。
-- GitHub CI 执行锁定依赖安装（npm ci）、完整 Node 自动化测试和 package-lock 一致性检查；当前测试套件为 83/83。
+- 当前正式版本为 0.3.12，代码已合入 main，Tag v0.3.12 和 GitHub Release 已发布：https://github.com/xiaobei206/SSTapNext/releases/tag/v0.3.12。
+- 这是个人项目，日常只在 main 开发，不建立 feature 分支或 PR。每项开发都必须先更新文档（目标、现状、设计、影响文件、安全约束、验收与测试），再修改代码；上下文结束前必须完成交接文档。
+- main 发布 commit：8f4be60d480e798bf3d17291230454df70674c86；该版本 Node CI run 42344552127、Windows Release run 42344552136 均成功。
+- 当前代码变更的验证证据：Node tests 86/86、package-lock 704/704、sing-box 55/55、Windows x64 Agent、TypeScript/Vite、NSIS 和 SHA-256 均通过。PR 最新功能 HEAD 的 run：42343664603 / 42343664600；main 发布 run：42344552127 / 42344552136。
+- 之后 main 文档提交对应 CI run 42344692593 和 Windows workflow run 42344692572 也成功；由于 v0.3.12 Release 已存在，文档提交不会重建/覆盖安装包。每轮新开发仍必须核对本次最新 SHA 对应的 run。
 - package-lock 检查覆盖 704 个依赖引用；不得为“修复 CI”而弱化依赖版本范围校验。
 - 新规则库样式须满足项目全局最小字号 14px 的回归约束。
+- 上述 CI/构建证据不等于用户 Windows 10/11 实机验收；真实规则库行为、节点出口、DNS、UDP/QUIC、TUN/Wintun 仍按 WINDOWS-ACCEPTANCE.md 逐项记录。
 
 ## SSTap .rules 转换与规则库
 
@@ -29,7 +33,7 @@ Windows Build-Windows.ps1 使用本机 runtime/sing-box 中的真实核心执行
 
 ## Windows 完整构建
 
-PR 的 Windows workflow 必须在 windows-2022 runner 上完成：
+发布新版本的 main Windows workflow（也支持 workflow_dispatch / PR 验证）必须在 windows-2022 runner 上完成：
 
 1. Node.js 22、.NET 10 SDK 安装和 npm ci。
 2. package-lock 检查和 Node tests。
@@ -39,7 +43,7 @@ PR 的 Windows workflow 必须在 windows-2022 runner 上完成：
 6. Electron NSIS 安装包生成。
 7. 安装包、blockmap 和 SHA-256 校验并上传 workflow artifact。
 
-PR 触发构建但不发布正式 GitHub Release；正式 Release 只能由 main/tag 发布流程创建。被后续提交取消的旧 Actions run 不能作为当前 HEAD 的通过证据。
+新版本 main push 在 Release 尚不存在时会执行完整构建并创建正式 Release；PR/workflow_dispatch 仅作为可选验证入口，不是本项目日常开发流程。被后续提交取消的旧 Actions run 不能作为当前 HEAD 的通过证据。
 
 ## 必须由用户在 Windows 10/11 实机确认
 
