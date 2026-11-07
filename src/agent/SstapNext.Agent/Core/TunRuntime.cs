@@ -403,9 +403,11 @@ internal static class TunRuntime
     {
         using var document = JsonDocument.Parse(File.ReadAllText(session.ConfigPath));
         var root = document.RootElement;
-        if (root.TryGetProperty("endpoints", out _) || root.TryGetProperty("experimental", out var experimental)
-            && experimental.TryGetProperty("clash_api", out _))
-            throw new InvalidDataException("TUN 配置包含不允许的 endpoint 或外部控制接口。");
+        // Endpoints remain categorically forbidden in the elevated TUN process.
+        // The statistics API is permitted only in the narrow loopback-only shape
+        // validated below; do not remove or broaden this Agent security boundary.
+        if (root.TryGetProperty("endpoints", out _))
+            throw new InvalidDataException("TUN 配置不允许使用根级 endpoints。");
 
         if (!root.TryGetProperty("inbounds", out var inbounds) || inbounds.ValueKind != JsonValueKind.Array || inbounds.GetArrayLength() != 1)
             throw new InvalidDataException("TUN 配置只能包含一个受限的 TUN 入站。");
@@ -475,10 +477,58 @@ internal static class TunRuntime
         if (!root.TryGetProperty("log", out var log) || !StringComparer.OrdinalIgnoreCase.Equals(GetString(log, "output"), session.LogPath))
             throw new InvalidDataException("sing-box 日志必须写入当前会话目录。");
         if (!root.TryGetProperty("experimental", out var experimentalConfig)
+            || experimentalConfig.ValueKind != JsonValueKind.Object
             || !experimentalConfig.TryGetProperty("cache_file", out var cache)
             || !GetBoolean(cache, "enabled")
             || !StringComparer.OrdinalIgnoreCase.Equals(GetString(cache, "path"), session.CachePath))
             throw new InvalidDataException("sing-box 缓存必须限制在当前用户应用数据目录。");
+
+        if (experimentalConfig.TryGetProperty("clash_api", out var clashApi))
+            ValidateRestrictedClashApi(clashApi);
+
+        foreach (var property in experimentalConfig.EnumerateObject())
+        {
+            if (property.Name is not ("cache_file" or "clash_api"))
+                throw new InvalidDataException($"TUN experimental 配置不允许字段：{property.Name}");
+        }
+    }
+
+    private static void ValidateRestrictedClashApi(JsonElement clashApi)
+    {
+        if (clashApi.ValueKind != JsonValueKind.Object)
+            throw new InvalidDataException("Clash API 配置必须是对象。");
+
+        var fields = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var property in clashApi.EnumerateObject())
+        {
+            if (!fields.Add(property.Name))
+                throw new InvalidDataException("Clash API 配置包含重复字段。");
+            if (property.Name is not ("external_controller" or "secret"))
+                throw new InvalidDataException($"TUN Clash API 不允许字段：{property.Name}");
+        }
+        if (fields.Count != 2 || !fields.Contains("external_controller") || !fields.Contains("secret"))
+            throw new InvalidDataException("TUN Clash API 只能包含 external_controller 与 secret。");
+
+        if (!clashApi.TryGetProperty("external_controller", out var endpointElement)
+            || endpointElement.ValueKind != JsonValueKind.String)
+            throw new InvalidDataException("TUN Clash API 必须指定本地控制端点。");
+
+        var endpoint = endpointElement.GetString() ?? string.Empty;
+        var endpointMatch = System.Text.RegularExpressions.Regex.Match(
+            endpoint,
+            @"^127\.0\.0\.1:([0-9]{1,5})$",
+            System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+        if (!endpointMatch.Success
+            || !int.TryParse(endpointMatch.Groups[1].Value, System.Globalization.NumberStyles.None,
+                System.Globalization.CultureInfo.InvariantCulture, out var port)
+            || port < 1 || port > 65535)
+            throw new InvalidDataException("TUN Clash API 只允许监听 127.0.0.1 的有效 TCP 端口。");
+
+        if (!clashApi.TryGetProperty("secret", out var secretElement)
+            || secretElement.ValueKind != JsonValueKind.String
+            || !System.Text.RegularExpressions.Regex.IsMatch(secretElement.GetString() ?? string.Empty,
+                "^[0-9a-fA-F]{64}$", System.Text.RegularExpressions.RegexOptions.CultureInvariant))
+            throw new InvalidDataException("TUN Clash API 密钥必须是 64 位十六进制随机值。");
     }
 
     private static void ValidateSessionDirectoryBeforeRead(string sessionDirectory)
