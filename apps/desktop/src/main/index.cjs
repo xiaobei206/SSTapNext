@@ -10,6 +10,7 @@ const { parseShareText } = require('../../../../src/shared/node-parser.cjs');
 const { mergeNodes, removeSource, replaceSourceNodes } = require('../../../../src/shared/node-registry.cjs');
 const { CoreController } = require('../../../../src/shared/core-controller.cjs');
 const { downloadSpeedTest } = require('../../../../src/shared/socks-speed-test.cjs');
+const { BatchNodeTester, ALLOWED_CONCURRENCY, ALLOWED_DOWNLOAD_THREADS, MAX_NODE_COUNT } = require('../../../../src/shared/batch-node-test.cjs');
 const { parseCustomRuleText } = require('../../../../src/shared/tun-config.cjs');
 const { TunController } = require('../../../../src/shared/tun-controller.cjs');
 const { getSstapRuleLibrary, updateSstapRuleLibrary } = require('../../../../src/shared/sstap-rule-library.cjs');
@@ -19,6 +20,7 @@ const MAX_SUBSCRIPTION_BYTES = 4 * 1024 * 1024;
 const FETCH_TIMEOUT_MS = 20_000;
 const USER_AGENT = `SSTapNext/${APP_VERSION}`;
 const NODE_TYPES = new Set(['vless', 'hysteria2', 'shadowsocks', 'vmess', 'trojan']);
+const MAX_NODE_TEST_RESULTS = 512;
 const DEFAULT_SPEED_TEST_URL = 'https://fsn1-speed.hetzner.com/1GB.bin';
 const LEGACY_CLOUDFLARE_SPEED_URL = 'https://speed.cloudflare.com/__down?bytes=100000000';
 const SPEED_TEST_FALLBACK_URLS = [
@@ -37,6 +39,7 @@ let coreController;
 let tunController;
 let speedTestRunning = false;
 let speedTestAbortController = null;
+let batchNodeTester;
 let quitAfterCoreStop = false;
 let appIsQuitting = false;
 
@@ -61,11 +64,13 @@ function defaultState() {
     nodes: [],
     subscriptions: [],
     speedResults: [],
+    nodeTestResults: {},
     settings: {
       mode: 'global',
       speedTestUrl: DEFAULT_SPEED_TEST_URL,
       speedTestBytes: 100000000,
       speedTestThreads: 1,
+      batchTestConcurrency: 4,
       dnsStrategy: 'ipv4_only',
       autoRefreshHours: 12,
       customRulesText: '',
@@ -121,7 +126,17 @@ function validateState(value) {
   const url = storedSpeedUrl === LEGACY_CLOUDFLARE_SPEED_URL ? DEFAULT_SPEED_TEST_URL : storedSpeedUrl;
   const bytes = Number.isFinite(settings.speedTestBytes) ? Math.min(Math.max(Math.floor(settings.speedTestBytes), 1_000_000), 1_000_000_000) : defaults.settings.speedTestBytes;
   const requestedThreads = Number(settings.speedTestThreads);
-  const threads = [1, 2, 4, 8].includes(requestedThreads) ? requestedThreads : 1;
+  const threads = ALLOWED_DOWNLOAD_THREADS.includes(requestedThreads) ? requestedThreads : 1;
+  const requestedBatchConcurrency = Number(settings.batchTestConcurrency);
+  const batchTestConcurrency = ALLOWED_CONCURRENCY.includes(requestedBatchConcurrency) ? requestedBatchConcurrency : defaults.settings.batchTestConcurrency;
+  const nodes = Array.isArray(value.nodes) ? value.nodes.filter(isNodeRecord) : [];
+  const nodeIds = new Set(nodes.map((node) => node.id));
+  const nodeTestResults = {};
+  if (value.nodeTestResults && typeof value.nodeTestResults === 'object' && !Array.isArray(value.nodeTestResults)) {
+    for (const [nodeId, result] of Object.entries(value.nodeTestResults).slice(-MAX_NODE_TEST_RESULTS)) {
+      if (nodeIds.has(nodeId) && isNodeTestResult(result)) nodeTestResults[nodeId] = result;
+    }
+  }
   const refreshHours = Number.isFinite(settings.autoRefreshHours) ? Math.min(Math.max(Math.floor(settings.autoRefreshHours), 1), 168) : 12;
   const customRulesText = typeof settings.customRulesText === 'string' ? settings.customRulesText.slice(0, 32 * 1024) : '';
   const enabledRuleIds = Array.isArray(settings.enabledRuleIds)
@@ -130,10 +145,11 @@ function validateState(value) {
   const dnsStrategy = ['ipv4_only', 'prefer_ipv4', 'prefer_ipv6'].includes(settings.dnsStrategy) ? settings.dnsStrategy : defaults.settings.dnsStrategy;
   return {
     schemaVersion: 1,
-    nodes: Array.isArray(value.nodes) ? value.nodes.filter(isNodeRecord) : [],
+    nodes,
+    nodeTestResults,
     subscriptions: Array.isArray(value.subscriptions) ? value.subscriptions.filter(isSubscriptionRecord) : [],
     speedResults: Array.isArray(value.speedResults) ? value.speedResults.filter(isSpeedResult).slice(0, 50) : [],
-    settings: { mode, speedTestUrl: url, speedTestBytes: bytes, speedTestThreads: threads, dnsStrategy, autoRefreshHours: refreshHours, customRulesText, enabledRuleIds },
+    settings: { mode, speedTestUrl: url, speedTestBytes: bytes, speedTestThreads: threads, batchTestConcurrency, dnsStrategy, autoRefreshHours: refreshHours, customRulesText, enabledRuleIds },
     updatedAt: typeof value.updatedAt === 'string' ? value.updatedAt : new Date().toISOString(),
     ...(typeof value.recoveryNotice === 'string' ? { recoveryNotice: value.recoveryNotice } : {}),
   };
@@ -145,6 +161,21 @@ function isNodeRecord(item) {
     && NODE_TYPES.has(item.type)
     && typeof item.server === 'string' && item.server.trim().length > 0 && item.server.length <= 253
     && Number.isInteger(item.server_port) && item.server_port >= 1 && item.server_port <= 65535);
+}
+
+
+function isNodeTestMetric(value, allowedStatuses) {
+  return Boolean(value && typeof value === 'object' && allowedStatuses.includes(value.status));
+}
+
+function isNodeTestResult(value) {
+  return Boolean(value && typeof value === 'object'
+    && typeof value.testedAt === 'string'
+    && ['complete', 'partial', 'error'].includes(value.status)
+    && isNodeTestMetric(value.ping, ['ok', 'timeout', 'error'])
+    && isNodeTestMetric(value.tcping, ['ok', 'timeout', 'error', 'not-applicable'])
+    && isNodeTestMetric(value.proxyLatency, ['ok', 'error'])
+    && isNodeTestMetric(value.download, ['ok', 'error']));
 }
 
 function isSubscriptionRecord(item) {
@@ -241,6 +272,30 @@ function getCoreController() {
 function sendSpeedProgress(progress) {
   const payload = { status: 'running', ...progress };
   if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('sstap:speed-progress', payload);
+}
+
+function getBatchNodeTester() {
+  if (!batchNodeTester) {
+    batchNodeTester = new BatchNodeTester({
+      getCorePath: findSingBoxExecutable,
+      getUserDataPath: () => app.getPath('userData'),
+      onProgress: (progress) => {
+        if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('sstap:batch-test-progress', progress);
+      },
+      onNodeResult: async ({ nodeId, result }) => serializeMutation(async () => {
+        const state = await loadState();
+        if (!state.nodes.some((node) => node.id === nodeId)) return false;
+        state.nodeTestResults = { ...(state.nodeTestResults || {}), [nodeId]: result };
+        const entries = Object.entries(state.nodeTestResults);
+        if (entries.length > MAX_NODE_TEST_RESULTS) {
+          state.nodeTestResults = Object.fromEntries(entries.slice(-MAX_NODE_TEST_RESULTS));
+        }
+        await persistState();
+        return true;
+      }),
+    });
+  }
+  return batchNodeTester;
 }
 
 async function persistState() {
@@ -537,8 +592,13 @@ ipcMain.handle('sstap:settings-save', async (event, patch) => {
   }
   if (patch.speedTestThreads !== undefined) {
     const threads = Number(patch.speedTestThreads);
-    if (!Number.isInteger(threads) || ![1, 2, 4, 8].includes(threads)) throw new Error('线程数只允许 1、2、4 或 8');
+    if (!ALLOWED_DOWNLOAD_THREADS.includes(threads)) throw new Error('单节点下载线程只允许 1、2、4、8、16 或 32');
     state.settings.speedTestThreads = threads;
+  }
+  if (patch.batchTestConcurrency !== undefined) {
+    const concurrency = Number(patch.batchTestConcurrency);
+    if (!ALLOWED_CONCURRENCY.includes(concurrency)) throw new Error('批量测速并发节点数只允许 1、2、4、8、16 或 32');
+    state.settings.batchTestConcurrency = concurrency;
   }
   if (patch.autoRefreshHours !== undefined) {
     const hours = Number(patch.autoRefreshHours);
@@ -636,7 +696,7 @@ ipcMain.handle('sstap:tun-status', async (event) => {
 ipcMain.handle('sstap:tun-connect', async (event, nodeId) => {
   assertTrustedRenderer(event);
   if (appIsQuitting) throw new Error('软件正在退出，已阻止新的系统代理连接。');
-  if (speedTestRunning) throw new Error('测速正在运行，请等测速结束后再启动系统代理。');
+  if (speedTestRunning || batchNodeTester?.isRunning) throw new Error('测速正在运行，请等测速结束后再启动系统代理。');
   if (ruleLibraryUpdating) throw new Error('SSTap 规则库正在下载和转换，请完成后再启动系统 TUN。');
   const localStatus = getCoreController().getStatus();
   if (['connected', 'starting', 'stopping'].includes(localStatus.status)) throw new Error('本地代理核心正在运行。请先断开本地代理，再启动系统 TUN，避免两个会话同时争用网络。');
@@ -665,7 +725,7 @@ ipcMain.handle('sstap:speed-test', async (event, nodeId) => {
   if (appIsQuitting) throw new Error('软件正在退出，已阻止新的测速请求。');
   const tunStatus = getTunController().getStatus();
   if (isTunNetworkStateUnsafe(tunStatus)) throw new Error('系统 TUN 正在接管流量或尚未完成清理；请先安全断开系统代理，再执行独立节点测速。');
-  if (speedTestRunning) throw new Error('当前已有测速任务正在运行。');
+  if (speedTestRunning || batchNodeTester?.isRunning) throw new Error('当前已有测速任务正在运行。');
   speedTestRunning = true;
   speedTestAbortController = new AbortController();
   sendSpeedProgress({ status: 'starting', receivedBytes: 0, totalBytes: 0, ratio: 0 });
@@ -720,6 +780,42 @@ ipcMain.handle('sstap:speed-test', async (event, nodeId) => {
   }
 });
 
+
+ipcMain.handle('sstap:batch-test-cancel', async (event) => {
+  assertTrustedRenderer(event);
+  if (!batchNodeTester?.isRunning) return false;
+  await getBatchNodeTester().cancel();
+  return true;
+});
+ipcMain.handle('sstap:batch-test-start', async (event, request) => {
+  assertTrustedRenderer(event);
+  if (appIsQuitting) throw new Error('软件正在退出，已阻止新的批量测速请求。');
+  if (speedTestRunning || batchNodeTester?.isRunning) throw new Error('当前已有测速任务正在运行。');
+  if (!request || !Array.isArray(request.nodeIds) || request.nodeIds.length < 1 || request.nodeIds.length > MAX_NODE_COUNT) {
+    throw new Error('请选择 1 至 ' + MAX_NODE_COUNT + ' 个节点进行批量检测。');
+  }
+  const concurrency = Number(request.concurrency);
+  if (!ALLOWED_CONCURRENCY.includes(concurrency)) throw new Error('批量测速并发节点数无效。');
+  const tunStatus = getTunController().getStatus();
+  if (isTunNetworkStateUnsafe(tunStatus)) {
+    throw new Error('系统 TUN 正在接管流量或尚未完成清理；请先安全断开系统代理，再执行独立节点批量测速。');
+  }
+  const nodeIds = [...new Set(request.nodeIds.filter((id) => typeof id === 'string' && id.length > 0 && id.length <= 128))];
+  if (nodeIds.length !== request.nodeIds.length) throw new Error('节点选择中包含重复或无效 ID。');
+  const state = await loadState();
+  const nodeMap = new Map(state.nodes.map((node) => [node.id, node]));
+  const missing = nodeIds.filter((id) => !nodeMap.has(id));
+  if (missing.length) throw new Error('部分待测节点已不存在，请刷新节点列表后重试。');
+  const nodes = nodeIds.map((id) => nodeMap.get(id));
+  return getBatchNodeTester().run(nodes, {
+    concurrency,
+    downloadThreads: state.settings.speedTestThreads,
+    totalBytes: state.settings.speedTestBytes,
+    url: state.settings.speedTestUrl,
+    fallbackUrls: SPEED_TEST_FALLBACK_URLS,
+  });
+});
+
 const hasSingleInstanceLock = app.requestSingleInstanceLock();
 if (!hasSingleInstanceLock) {
   app.quit();
@@ -742,16 +838,18 @@ app.on('before-quit', (event) => {
   appIsQuitting = true;
   // A running speed test must not keep opening new proxy requests while the app exits.
   if (speedTestAbortController) speedTestAbortController.abort();
+  const batchNeedsStop = batchNodeTester?.isRunning === true;
   const localStatus = coreController?.getStatus();
   const tunStatus = tunController?.getStatus();
   const localNeedsStop = localStatus && ['connected', 'starting', 'stopping'].includes(localStatus.status);
   const tunNeedsStop = tunStatus && !['disconnected', 'stopped', 'stopped_with_warning'].includes(tunStatus.status);
-  if (localNeedsStop || tunNeedsStop) {
+  if (localNeedsStop || tunNeedsStop || batchNeedsStop) {
     event.preventDefault();
     quitAfterCoreStop = true;
     Promise.allSettled([
       localNeedsStop ? coreController.disconnect() : Promise.resolve(),
       tunNeedsStop ? tunController.disconnect() : Promise.resolve(),
+      batchNeedsStop ? getBatchNodeTester().cancel() : Promise.resolve(),
     ]).then((results) => {
       for (const result of results) if (result.status === 'rejected') console.error('[SSTap Next] 网络会话退出清理失败：', result.reason);
     }).finally(() => app.quit());

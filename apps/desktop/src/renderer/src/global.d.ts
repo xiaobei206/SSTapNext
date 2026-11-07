@@ -81,6 +81,49 @@ declare global {
     error: string | null;
   };
 
+  type SstapNodeTestMetric = {
+    status: 'testing' | 'ok' | 'timeout' | 'error' | 'not-applicable';
+    averageMs?: number | null;
+    latencyMs?: number | null;
+    lossPercent?: number | null;
+    sent?: number;
+    received?: number;
+    averageMbps?: number | null;
+    peakMbps?: number | null;
+    bytes?: number;
+    elapsedMs?: number;
+    threads?: number;
+    statusCode?: number;
+    message?: string | null;
+  };
+
+  type SstapNodeTestResult = {
+    testedAt: string;
+    status: 'testing' | 'complete' | 'partial' | 'error';
+    ping: SstapNodeTestMetric;
+    tcping: SstapNodeTestMetric;
+    proxyLatency: SstapNodeTestMetric;
+    download: SstapNodeTestMetric;
+  };
+
+  type SstapBatchTestProgress = {
+    status: 'starting' | 'running' | 'completed' | 'cancelled' | 'error';
+    total?: number;
+    completed?: number;
+    failed?: number;
+    active?: number;
+    concurrency?: number;
+    requestedDownloadThreads?: number;
+    effectiveDownloadThreads?: number;
+    nodeId?: string;
+    nodeName?: string;
+    metric?: string;
+    result?: SstapNodeTestResult;
+    downloadProgress?: { receivedBytes: number; totalBytes: number; ratio: number; completedWorkers: number; threads: number; message?: string };
+    message?: string;
+    batchId?: string;
+  };
+
   type SstapSpeedProgress = {
     status: 'starting' | 'running' | 'completed' | 'cancelled' | 'error';
     receivedBytes?: number;
@@ -122,11 +165,13 @@ declare global {
     nodes: SstapNode[];
     subscriptions: SstapSubscription[];
     speedResults: SstapSpeedResult[];
+    nodeTestResults: Record<string, SstapNodeTestResult>;
     settings: {
       mode: 'global' | 'bypass-cn' | 'rule';
       speedTestUrl: string;
       speedTestBytes: number;
       speedTestThreads: number;
+      batchTestConcurrency: number;
       autoRefreshHours: number;
       customRulesText: string;
       dnsStrategy: 'ipv4_only' | 'prefer_ipv4' | 'prefer_ipv6';
@@ -160,6 +205,9 @@ declare global {
       disconnectTun(): Promise<SstapTunStatus>;
       runSpeedTest(id: string): Promise<{ state: SstapState; result: SstapSpeedResult }>;
       cancelSpeedTest(): Promise<boolean>;
+      startBatchNodeTest(options: { nodeIds: string[]; concurrency: number }): Promise<{ status: string; total: number; completed: number; failed: number; effectiveDownloadThreads: number }>;
+      cancelBatchNodeTest(): Promise<boolean>;
+      onBatchTestProgress(listener: (progress: SstapBatchTestProgress) => void): () => void;
       onCoreEvent(listener: (status: SstapCoreStatus) => void): () => void;
       onTunEvent(listener: (status: SstapTunStatus) => void): () => void;
       onSpeedProgress(listener: (progress: SstapSpeedProgress) => void): () => void;

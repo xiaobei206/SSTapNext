@@ -28,7 +28,10 @@ contextBridge.exposeInMainWorld('sstap', Object.freeze({
   disconnectTun: () => ipcRenderer.invoke('sstap:tun-disconnect'),
   runSpeedTest: (id) => ipcRenderer.invoke('sstap:speed-test', id),
   cancelSpeedTest: () => ipcRenderer.invoke('sstap:speed-cancel'),
+  startBatchNodeTest: (options) => ipcRenderer.invoke('sstap:batch-test-start', options),
+  cancelBatchNodeTest: () => ipcRenderer.invoke('sstap:batch-test-cancel'),
   onCoreEvent: (listener) => subscribe('sstap:core-event', listener),
   onTunEvent: (listener) => subscribe('sstap:tun-event', listener),
   onSpeedProgress: (listener) => subscribe('sstap:speed-progress', listener),
+  onBatchTestProgress: (listener) => subscribe('sstap:batch-test-progress', listener),
 }));

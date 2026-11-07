@@ -204,7 +204,7 @@ function requestHeaders(url, agent, headers, timeoutMs, method = 'GET', signal) 
       method,
       agent,
       headers: {
-        'User-Agent': 'SSTapNext-SpeedTest/0.3.7',
+        'User-Agent': 'SSTapNext-SpeedTest/0.3.13',
         'Accept-Encoding': 'identity',
         Connection: 'close',
         ...headers,
@@ -374,7 +374,7 @@ async function downloadSpeedTestOnce(options, requestedUrl) {
   if (!Number.isSafeInteger(totalBytes) || totalBytes < 1_000_000 || totalBytes > 1_000_000_000) {
     throw new Error('测速下载量必须在 1 MB 至 1 GB 之间');
   }
-  if (!Number.isInteger(threads) || ![1, 2, 4, 8].includes(threads)) throw new Error('测速线程数只允许 1、2、4 或 8');
+  if (!Number.isInteger(threads) || ![1, 2, 4, 8, 16, 32].includes(threads)) throw new Error('测速线程数只允许 1、2、4、8、16 或 32');
   if (!Number.isInteger(proxyPort) || proxyPort < 1 || proxyPort > 65535) throw new Error('本地 SOCKS5 端口无效');
 
   const abortController = new AbortController();
