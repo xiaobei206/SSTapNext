@@ -1,3 +1,14 @@
+## 0.3.16 紧急修复：TUN Agent 拒绝 Clash API（需发布新版本）
+
+- 用户实测 v0.3.15：启动系统接管时报 `InvalidDataException: TUN 配置包含不允许的 endpoint 或外部控制接口。`。
+- 根因：`src/agent/SstapNext.Agent/Core/TunRuntime.cs` 把 `experimental.clash_api` 整体拒绝，和本轮 TUN 流量统计配置冲突。
+- 已修复：继续禁用根级 `endpoints`，只允许 `127.0.0.1:<合法端口>`、64 hex secret 和恰好两个 API 字段 `external_controller`/`secret`；拒绝附加字段、重复字段、LAN/0.0.0.0/IPv6/不合法端口或密钥。其余 TUN 安全验证保持不变。
+- 文档：`docs/RELEASE-0.3.16.md`、`docs/LIVE-TRAFFIC-AND-UI-READABILITY.md`。
+- 版本目标：**0.3.16**。GitHub 的 v0.3.15 已存在，不能在相同版本下替换安装包。
+- 0.3.15 后续 main SHA 的 Windows workflow run 42364620391 success，但 Verify lock / Build Windows / Verify installer 都 skipped；不得把它作为修复已构建的证据。
+- 下一步：同步 package/lock、Agent banner/csproj、Build-Windows 输出、README/CHANGELOG/START HERE/项目总览，然后触发 0.3.16 全链路构建。需要看到实际 Build-Windows、58/58 sing-box check、.NET Agent、TS/Vite、NSIS、EXE、blockmap、SHA 和新 Release 资产全成功。
+- Windows 实机当前仍 NOT RUN；用户安装 0.3.16 后需要重测系统 TUN 启动与流量采样。
+
 ## 0.3.15 实现进度（当前 main）：实时流量统计 + 节点累计 + UI 可读性
 
 设计文档：`docs/LIVE-TRAFFIC-AND-UI-READABILITY.md`；先行设计提交：`f592fc721d2b097f35fc44eb5ef5aea8ecfa6cf6`。功能代码已进入 main，正式验证/发布尚未完成。
