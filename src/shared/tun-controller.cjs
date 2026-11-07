@@ -5,6 +5,7 @@ const path = require('node:path');
 const crypto = require('node:crypto');
 const { spawn } = require('node:child_process');
 const { buildTunConfig } = require('./tun-config.cjs');
+const { getEnabledSstapRuleSets } = require('./sstap-rule-library.cjs');
 
 function delay(ms) { return new Promise((resolve) => setTimeout(resolve, ms)); }
 
@@ -472,7 +473,8 @@ class TunController {
 
     try {
       await fs.mkdir(path.dirname(session.cachePath), { recursive: true });
-      const config = buildTunConfig(node, settings, { interfaceName: 'SSTap Next', logPath: session.logPath, cachePath: session.cachePath });
+      const importedRuleSets = await getEnabledSstapRuleSets(this.getUserDataPath(), settings.enabledRuleIds || [], session.mode);
+      const config = buildTunConfig(node, settings, { interfaceName: 'SSTap Next', logPath: session.logPath, cachePath: session.cachePath, importedRuleSets });
       const configText = JSON.stringify(config, null, 2);
       const configSha256 = crypto.createHash('sha256').update(configText, 'utf8').digest('hex');
       await fs.writeFile(session.configPath, configText, { encoding: 'utf8', flag: 'wx', mode: 0o600 });

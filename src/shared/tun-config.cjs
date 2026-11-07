@@ -145,7 +145,22 @@ function buildTunConfig(node, settings = {}, options = {}) {
   if (mode === 'rule') rules.push(...parsedCustom.rules);
   rules.push({ ip_is_private: true, action: 'route', outbound: 'direct' });
 
-  const ruleSets = [];
+  const importedRuleSets = Array.isArray(options.importedRuleSets) ? options.importedRuleSets : [];
+  for (const item of importedRuleSets) {
+    if (!item || !/^sstap_[a-f0-9]{16}$/.test(String(item.tag || ''))
+      || typeof item.path !== 'string' || !/^(?:[a-zA-Z]:\\\\|\\\\\\\\|\/)/.test(item.path)
+      || !['proxy', 'direct'].includes(item.action)) {
+      throw new Error('导入的 SSTap 规则集路径、标签或路由动作无效');
+    }
+    rules.push({ rule_set: [item.tag], action: 'route', outbound: item.action === 'proxy' ? 'selected-proxy' : 'direct' });
+  }
+
+  const ruleSets = importedRuleSets.map((item) => ({
+    type: 'local',
+    tag: item.tag,
+    format: 'source',
+    path: item.path,
+  }));
   if (mode === 'bypass-cn') {
     ruleSets.push(...CHINA_RULESETS.map((item) => ({
       type: 'remote',
@@ -176,7 +191,7 @@ function buildTunConfig(node, settings = {}, options = {}) {
   selectedProxy.domain_resolver = 'dns-bootstrap';
 
   const config = {
-    ...(ruleSets.length ? { http_clients: [{ tag: 'ruleset-download' }] } : {}),
+    ...(ruleSets.some((item) => item.type === 'remote') ? { http_clients: [{ tag: 'ruleset-download' }] } : {}),
     log: { level: options.logLevel || 'info', timestamp: true, ...(options.logPath ? { output: options.logPath } : {}) },
     dns: {
       servers: [
