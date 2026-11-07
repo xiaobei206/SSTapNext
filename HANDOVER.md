@@ -20,7 +20,7 @@
 - TUN integration: `src/shared/tun-controller.cjs` loads selected local rules at session creation. Route order is DNS hijack/sniff → private/LAN direct → user-selected SSTap game rules → automatic `BypassCNandLan.rules` in bypass-cn mode → MetaCubeX GeoSite/GeoIP fallback → final proxy. The automatic broad CN table must remain after selected game rules so an overlapping CIDR cannot defeat an explicit game Proxy rule.
 - China bypass retains existing remote MetaCubeX `geosite-cn` and `geoip-cn`; if a rule library is installed, legacy `BypassCNandLan.rules` is auto-added after explicitly selected game rules when mode is `bypass-cn`.
 - Selected rule IDs are persisted in encrypted app settings. During an update, IDs no longer present upstream are pruned.
-- Both updater and selection changes are blocked while TUN is starting/running/stopping. A failed download/conversion does not replace the current pointer; prior revisions are retained.
+- Rule-library update, routing-setting changes and TUN startup use a fail-closed mutual-exclusion boundary. The controller lock covers in-flight recovery/start/stop promises, retained sessions and requested/awaiting_uac/starting/running/stopping/cleanup_error statuses. While an update is in progress, TUN connect is rejected; while TUN is active or cleanup is unresolved, rule updates and routing-setting changes are rejected. The renderer disables the corresponding controls, but Electron main/controller checks are authoritative. A failed download/conversion does not replace the current pointer; prior revisions are retained.
 
 ## Key implementation files
 
@@ -49,5 +49,5 @@ The Windows build script runs Node tests, 54 protocol/mode/DNS sing-box combinat
 - Keep all current fail-closed cleanup protections.
 - Never publish user node URI, password, subscription URL, encrypted state, session files or runtime configs.
 - Keep sing-box version pinned unless separately audited.
-- Do not perform rule-library updates or change active rule selection while system TUN is starting/running/stopping.
+- Do not perform rule-library updates or change routing settings while TUN is recovering/starting/running/stopping or in cleanup_error; do not start TUN while a rule-library update is running.
 - The app must retain the last valid rule library when upstream download, extraction, parse or validation fails.
