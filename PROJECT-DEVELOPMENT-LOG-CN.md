@@ -582,3 +582,9 @@
 - 代码提交：`c511574f6270b0cb0466036479b85ef82ddaf9ba`；新增测试提交：`3f1fd68209d3d42675aec395847d206d2d50ccd2`。版本更新提交：package `968296633b30e04e2a423ebc248f021c8446b96b`、lock `6398d8eed0616d8d739b10b94f6a73f3d22baf8d`、Agent csproj `012e17d1dc0bed2558ebe58cb744ffec5e975287`、Agent banner `ffdd304b658a5e1d8a3c409edf120046ad6d3c38`、Windows build banner `e84281fedf13f2c8c115815ea9f32544c1481066`。
 - **验证状态：** 尚未运行 `npm test`、`npm run verify:lock`、Agent 编译或 Windows 安装包构建；GitHub Actions 尚未检查。以上全部暂记 NOT RUN，不宣称通过。真实 Windows TUN 行为/重连验收 NOT RUN。
 - 安全边界：不操作旧版 SSTap `SSTAP 1 / TAP-Windows Adapter V9`；不删除或修改任何网卡、驱动、路由、DNS。v0.3.16 Release 资产保持不变；0.3.17 仍未发布。
+
+
+### 安全复核追加（2026-11-08）
+
+- 对初版修复做代码审查时发现：现有检查器只确认 sing-box PID 和接口状态，没有确认是否还有旧 `SstapNext.Agent.exe` 进程。用户本次进程列表显示 Agent 已退出，但自动恢复实现不能依赖单次实测推断所有场景安全。
+- 已先更新 `docs/TUN-ORPHAN-RECOVERY-0.3.17.md`：恢复必须由 PowerShell 在启动检查器前枚举现存 Agent，并由 .NET 检查器排除自身 PID 后确认没有其他 Agent。任一检查失败或仍有其他 Agent，保持 fail-closed。对应代码/测试补充尚待提交与 CI 验证。
