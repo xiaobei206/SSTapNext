@@ -5,8 +5,8 @@
 > 仓库：https://github.com/xiaobei206/SSTapNext  
 > 唯一开发线：**main**  
  > 当前正式发布版本：**0.3.16**（GitHub Release）
-> main 当前版本：**0.3.16（已发布）**  
-上一正式版本：**0.3.15**  
+> main 当前开发版本：**0.3.17（开发中，未发布）**  
+上一正式 Release：**0.3.16**  
 > 本文件是新对话的第一入口；如果本文件与 GitHub 实际状态不一致，以实时仓库、Actions 和 Release 为准，并先修正文档。
 
 ## 2026-11-08 当前 P0：TUN 孤儿会话恢复
@@ -43,14 +43,14 @@
 
 ---
 
-## 1. 当前可信基线（已核实至 2026-11-07）
+## 1. 当前可信基线（Release 已核实至 2026-11-07；main 正在开发 0.3.17）
 
 ### 仓库与版本
 
 - GitHub：xiaobei206/SSTapNext
 - 唯一开发入口：main；不新建 feature 分支或 PR。
 - 当前正式 Release：v0.3.16（2026-11-07），https://github.com/xiaobei206/SSTapNext/releases/tag/v0.3.16
-- 当前公开 Release：v0.3.16；main package / Agent version 为 0.3.16；上一正式版本：v0.3.15。
+- 当前公开 Release：v0.3.16；main package / Agent version 已递增至 0.3.17（开发中，未发布）；上一正式 Release：v0.3.16。
 - v0.3.16 Release target commit：`6245eab7e953ff13c0f765691a8ad1692e15f14e`；本次收尾开始时 main HEAD：`f3e27bfba1a3480317fa7555c9296dd38fc5d2fa`（比发布目标只多一个文档提交，运行时代码一致）。
 - 为消除首次 CI 偶发状态 JSON 解析失败，追加了仅测试夹具提交 `6ba1c2e6dacdfa59c62c109190086597578bf9a2`；该提交只改 `src/shared/tun-controller.test.mjs`，Node CI run [42369688144](https://github.com/xiaobei206/SSTapNext/actions/runs/42369688144) **107/107 PASS、0 fail，lock 704/704 PASS**。运行时代码、版本号和 v0.3.16 发布资产未改动。
 - 旧分支 `feature/sstap-rule-library-0312` 不再使用；PR #1 仅是历史迁移记录。
