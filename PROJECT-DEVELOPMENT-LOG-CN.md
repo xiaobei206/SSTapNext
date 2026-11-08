@@ -571,3 +571,14 @@
 - 用户纠正：`SSTAP 1 / TAP-Windows Adapter V9` 属于旧版 SSTap，与 SSTap Next 无关；严禁对其执行任何操作。
 - 设计文档 `docs/TUN-ORPHAN-RECOVERY-0.3.17.md` 已先行提交，commit `da9e79853bf31d004cd7ba65cb2c783e9eef1a12`。计划在 0.3.17 中仅对已确认核心 PID 不存在、双重枚举完整且所有 SSTap Next sing-tun 接口均非活动/无地址的运行中孤儿会话做归档恢复；其他情况保持 fail-closed；桌面端停止等待改为至少 45 秒。
 - 本条记录时尚未改代码、版本号或测试；测试、CI、Windows 构建和真实实机验收均 NOT RUN。
+
+## 2026-11-08 — v0.3.17 TUN 孤儿会话恢复实现（验证待执行）
+
+- 先行设计文档：`docs/TUN-ORPHAN-RECOVERY-0.3.17.md`，commit `da9e79853bf31d004cd7ba65cb2c783e9eef1a12`；交接/开发入口随后同步。
+- `src/shared/tun-controller.cjs` 新增运行中孤儿会话恢复路径：只对 `status=running`、`interfaceName=SSTap Next` 且有有效历史 corePid 的会话进行检查；要求现有 PowerShell + .NET 双重只读核验确认 PID 不存在、所有 SSTap Next sing-tun 接口均 Down/Disconnected/NotPresent 且无 IP、检查完整且来源齐全。成功时先归档原始状态，再原子更新为 `stopped_with_warning`，写入恢复标记并保留日志。核验失败不释放锁。
+- 正常停止等待由 30 秒提高到 45 秒；到期仍不会仅凭超时解除锁。
+- `src/shared/tun-controller.test.mjs` 新增双重核验成功恢复与活动接口拒绝恢复的测试。
+- 版本字段同步到 0.3.17：根 package/lock、Agent csproj/banner、Windows build banner；更新 CHANGELOG 并创建 `docs/RELEASE-0.3.17.md`。
+- 代码提交：`c511574f6270b0cb0466036479b85ef82ddaf9ba`；新增测试提交：`3f1fd68209d3d42675aec395847d206d2d50ccd2`。版本更新提交：package `968296633b30e04e2a423ebc248f021c8446b96b`、lock `6398d8eed0616d8d739b10b94f6a73f3d22baf8d`、Agent csproj `012e17d1dc0bed2558ebe58cb744ffec5e975287`、Agent banner `ffdd304b658a5e1d8a3c409edf120046ad6d3c38`、Windows build banner `e84281fedf13f2c8c115815ea9f32544c1481066`。
+- **验证状态：** 尚未运行 `npm test`、`npm run verify:lock`、Agent 编译或 Windows 安装包构建；GitHub Actions 尚未检查。以上全部暂记 NOT RUN，不宣称通过。真实 Windows TUN 行为/重连验收 NOT RUN。
+- 安全边界：不操作旧版 SSTap `SSTAP 1 / TAP-Windows Adapter V9`；不删除或修改任何网卡、驱动、路由、DNS。v0.3.16 Release 资产保持不变；0.3.17 仍未发布。
