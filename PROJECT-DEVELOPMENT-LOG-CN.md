@@ -588,3 +588,7 @@
 
 - 对初版修复做代码审查时发现：现有检查器只确认 sing-box PID 和接口状态，没有确认是否还有旧 `SstapNext.Agent.exe` 进程。用户本次进程列表显示 Agent 已退出，但自动恢复实现不能依赖单次实测推断所有场景安全。
 - 已先更新 `docs/TUN-ORPHAN-RECOVERY-0.3.17.md`：恢复必须由 PowerShell 在启动检查器前枚举现存 Agent，并由 .NET 检查器排除自身 PID 后确认没有其他 Agent。任一检查失败或仍有其他 Agent，保持 fail-closed。对应代码/测试补充尚待提交与 CI 验证。
+
+
+- 追加实现：`src/agent/SstapNext.Agent/Core/TunRuntime.cs` 现在在检查结果中报告其他 Agent 进程数量（排除检查器自身）；PowerShell 同样枚举已存在的 `SstapNext.Agent.exe`。孤儿恢复及历史 inactive-cleanup 恢复均要求两侧检查成功且没有其他 Agent，避免旧 Agent 与新会话竞争。
+- 新增负向测试：其他 Agent 存在、Agent 进程检查不完整时不得恢复；活动接口时不得恢复。最新测试提交 `97cc18edb7fac413a8f27436b80e47b1cbc87ab8`。截至此日志更新，最新 Node CI / Windows workflow 仍待最终结果。
