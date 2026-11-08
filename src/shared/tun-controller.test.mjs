@@ -128,6 +128,86 @@ test('refuses to start a second TUN session while one is already running', async
   await controller.disconnect();
 });
 
+test('recovers a dead-core running orphan only after dual-source proof all SSTap Next TUN adapters are inactive', async (t) => {
+  const adapter = (name, description, id) => ({
+    name, description, id, status: 'NotPresent', addresses: [],
+    operationallyActive: false, inspectionError: null,
+  });
+  const { root, fake, controller } = await makeController({
+    inspectAdapter: async (id, pid) => {
+      assert.equal(id, '{00000000-0000-0000-0000-000000000000}');
+      assert.equal(pid, 4968);
+      return {
+        found: false, absent: true, inspectionComplete: true, matchCount: 0,
+        relatedAdapters: [
+          adapter('singbox_tun', 'sing-tun Tunnel', '{B738A021-9842-444C-10B0-A4E3F65AB5B6}'),
+          adapter('SSTap Next Test', 'sing-tun Tunnel #2', '{A5BF671B-9F50-B1F2-2EB1-6A40815D5AC5}'),
+          adapter('SSTap Next', 'sing-tun Tunnel #3', '{8AC250D2-5056-026B-1DA1-96E3759C87AB}'),
+          adapter('SSTap FullDiag', 'sing-tun Tunnel #4', '{A966B662-F331-7ACE-2FC4-597F37BF13CD}'),
+        ],
+        processCheckComplete: true, singBoxProcessRunning: false,
+        expectedTunAddress: '172.19.0.1', operationallyActive: false,
+        verificationSources: [
+          'PowerShell Get-NetAdapter -IncludeHidden',
+          '.NET NetworkInterface.GetAllNetworkInterfaces',
+        ],
+      };
+    },
+  });
+  t.after(async () => { fake.clear(); await fs.rm(root, { recursive: true, force: true }); });
+
+  const staleId = 'e'.repeat(32);
+  const staleDirectory = path.join(root, 'runtime', `tun-${staleId}`);
+  await fs.mkdir(staleDirectory, { recursive: true });
+  await fs.writeFile(path.join(staleDirectory, 'session.json'), JSON.stringify({
+    sessionId: staleId, interfaceName: 'SSTap Next', mode: 'global',
+  }));
+  const originalStatus = {
+    sessionId: staleId, status: 'running', corePid: 4968,
+    interfaceName: 'SSTap Next', mode: 'global', lastError: null,
+  };
+  await fs.writeFile(path.join(staleDirectory, 'status.json'), JSON.stringify(originalStatus));
+  await fs.writeFile(path.join(staleDirectory, 'sing-box.log'), 'preserve-orphan-log');
+
+  const started = await controller.connect(node, { mode: 'global' });
+  assert.equal(started.status, 'running');
+  const archived = JSON.parse(await fs.readFile(path.join(staleDirectory, 'status.orphaned-running-legacy.json'), 'utf8'));
+  assert.equal(archived.status, 'running');
+  assert.equal(archived.corePid, 4968);
+  const recovered = JSON.parse(await fs.readFile(path.join(staleDirectory, 'status.json'), 'utf8'));
+  assert.equal(recovered.status, 'stopped_with_warning');
+  assert.equal(recovered.corePid, null);
+  assert.match(recovered.lastError, /双重只读核验确认旧 sing-box PID 4968 已退出/);
+  assert.ok((await fs.readdir(staleDirectory)).includes('.verified-orphaned-running-recovered-0.3.17'));
+  assert.equal(await fs.readFile(path.join(staleDirectory, 'sing-box.log'), 'utf8'), 'preserve-orphan-log');
+  await controller.disconnect();
+});
+
+test('does not recover a running orphan when any SSTap Next adapter is active', async (t) => {
+  const { root, fake, controller } = await makeController({
+    inspectAdapter: async () => ({
+      found: false, absent: true, inspectionComplete: true, matchCount: 0,
+      relatedAdapters: [{
+        name: 'SSTap Next', description: 'sing-tun Tunnel #3',
+        id: '{8AC250D2-5056-026B-1DA1-96E3759C87AB}',
+        status: 'Up', addresses: ['172.19.0.1'], operationallyActive: true, inspectionError: null,
+      }],
+      processCheckComplete: true, singBoxProcessRunning: false,
+      expectedTunAddress: '172.19.0.1', operationallyActive: true,
+      verificationSources: [
+        'PowerShell Get-NetAdapter -IncludeHidden',
+        '.NET NetworkInterface.GetAllNetworkInterfaces',
+      ],
+    }),
+  });
+  t.after(async () => { fake.clear(); await fs.rm(root, { recursive: true, force: true }); });
+  const status = {
+    sessionId: 'f'.repeat(32), status: 'running', corePid: 4968,
+    interfaceName: 'SSTap Next', mode: 'global',
+  };
+  assert.equal(await controller._verifyOrphanedRunningSession(status), null);
+});
+
 test('recovers an orphaned prior session before opening a new TUN session', async (t) => {
   const { root, fake, controller } = await makeController();
   t.after(async () => { fake.clear(); await fs.rm(root, { recursive: true, force: true }); });
