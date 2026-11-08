@@ -1,10 +1,10 @@
-## 0.3.18 — TUN 孤儿会话安全恢复最终加固（开发中，未发布）
+## 0.3.18 — TUN 孤儿会话安全恢复最终加固（2026-11-08 已发布）
 
 - 修复 Windows 重启/休眠恢复或异常退出后，Agent 与 sing-box 已消失但 TUN 会话状态仍为 running，启动恢复逻辑只写 stop.signal 并空等 30 秒的问题。
 - 仅在 PowerShell 与 .NET 双重只读核验完整确认旧 sing-box PID 不存在、相关 SSTap Next sing-tun 接口均不活动且没有 IP 时，归档旧状态并安全释放孤儿会话锁；检查失败或资源仍活动时继续 fail-closed。
 - 正常 Agent 停止等待预算由 30 秒提高到 45 秒，覆盖 18 秒核心停止 + 18 秒接口释放预算。超时本身仍不代表安全，不会因此直接解除锁。
 - 严禁操作旧版 SSTap 的 `SSTAP 1 / TAP-Windows Adapter V9`；不删除任何网卡、驱动、路由或 DNS。原始状态和 sing-box 日志保留。
-- 自动化、Windows 构建与真实 TUN 实机验收待完成。详见 `docs/TUN-ORPHAN-RECOVERY-0.3.18.md` 和 `docs/RELEASE-0.3.18.md`。
+- Node CI 110/110 PASS、lock 校验通过；Windows Agent、sing-box 58/58、TS/Vite、NSIS、安装包 SHA、Release 与 artifact 均成功。真实 TUN 实机验收仍 NOT RUN。详见 `docs/TUN-ORPHAN-RECOVERY-0.3.18.md` 和 `docs/RELEASE-0.3.18.md`。
 
 ## 0.3.17 — TUN 孤儿会话恢复初版（已发布；被 0.3.18 supersede）
 
