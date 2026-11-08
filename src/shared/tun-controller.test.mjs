@@ -147,6 +147,8 @@ test('recovers a dead-core running orphan only after dual-source proof all SSTap
         ],
         processCheckComplete: true, singBoxProcessRunning: false,
         expectedTunAddress: '172.19.0.1', operationallyActive: false,
+        agentProcessCheckComplete: true, activeAgentProcessCount: 0,
+        otherAgentProcessCheckComplete: true, otherAgentProcessCount: 0,
         verificationSources: [
           'PowerShell Get-NetAdapter -IncludeHidden',
           '.NET NetworkInterface.GetAllNetworkInterfaces',
@@ -194,7 +196,9 @@ test('does not recover a running orphan when any SSTap Next adapter is active', 
       }],
       processCheckComplete: true, singBoxProcessRunning: false,
       expectedTunAddress: '172.19.0.1', operationallyActive: true,
-      verificationSources: [
+      agentProcessCheckComplete: true, activeAgentProcessCount: 0,
+        otherAgentProcessCheckComplete: true, otherAgentProcessCount: 0,
+        verificationSources: [
         'PowerShell Get-NetAdapter -IncludeHidden',
         '.NET NetworkInterface.GetAllNetworkInterfaces',
       ],
@@ -323,7 +327,9 @@ test('recovers a missing historical GUID when related SSTap/sing-tun objects are
         ],
         processId: 24372, processCheckComplete: true, singBoxProcessRunning: false, processName: null,
         id: adapterId, expectedTunAddress: '172.19.0.1', operationallyActive: false,
-        verificationSources: ['PowerShell Get-NetAdapter -IncludeHidden', '.NET NetworkInterface.GetAllNetworkInterfaces'],
+        agentProcessCheckComplete: true, activeAgentProcessCount: 0,
+        otherAgentProcessCheckComplete: true, otherAgentProcessCount: 0,
+        agentProcessCheckComplete: true, activeAgentProcessCount: 0, otherAgentProcessCheckComplete: true, otherAgentProcessCount: 0, verificationSources: ['PowerShell Get-NetAdapter -IncludeHidden', '.NET NetworkInterface.GetAllNetworkInterfaces'],
       };
     },
   });
@@ -359,8 +365,12 @@ test('recovers a missing historical GUID when related SSTap/sing-tun objects are
 test('does not accept adapter absence when the historical PID is still sing-box or related adapters remain', async (t) => {
   const adapterId = '{8AC250D2-5056-026B-1DA1-96E3759C87AB}';
   for (const inspection of [
-    { found: false, absent: true, inspectionComplete: true, matchCount: 0, relatedAdapters: [], processCheckComplete: true, singBoxProcessRunning: true, expectedTunAddress: '172.19.0.1', operationallyActive: false, verificationSources: ['PowerShell Get-NetAdapter -IncludeHidden', '.NET NetworkInterface.GetAllNetworkInterfaces'] },
-    { found: false, absent: true, inspectionComplete: true, matchCount: 0, relatedAdapters: [{ name: 'SSTap Next', description: 'sing-tun Tunnel #3' }], processCheckComplete: true, singBoxProcessRunning: false, expectedTunAddress: '172.19.0.1', operationallyActive: false, verificationSources: ['PowerShell Get-NetAdapter -IncludeHidden', '.NET NetworkInterface.GetAllNetworkInterfaces'] },
+    { found: false, absent: true, inspectionComplete: true, matchCount: 0, relatedAdapters: [], processCheckComplete: true, singBoxProcessRunning: true, expectedTunAddress: '172.19.0.1', operationallyActive: false, agentProcessCheckComplete: true, activeAgentProcessCount: 0,
+        otherAgentProcessCheckComplete: true, otherAgentProcessCount: 0,
+        agentProcessCheckComplete: true, activeAgentProcessCount: 0, otherAgentProcessCheckComplete: true, otherAgentProcessCount: 0, verificationSources: ['PowerShell Get-NetAdapter -IncludeHidden', '.NET NetworkInterface.GetAllNetworkInterfaces'] },
+    { found: false, absent: true, inspectionComplete: true, matchCount: 0, relatedAdapters: [{ name: 'SSTap Next', description: 'sing-tun Tunnel #3' }], processCheckComplete: true, singBoxProcessRunning: false, expectedTunAddress: '172.19.0.1', operationallyActive: false, agentProcessCheckComplete: true, activeAgentProcessCount: 0,
+        otherAgentProcessCheckComplete: true, otherAgentProcessCount: 0,
+        agentProcessCheckComplete: true, activeAgentProcessCount: 0, otherAgentProcessCheckComplete: true, otherAgentProcessCount: 0, verificationSources: ['PowerShell Get-NetAdapter -IncludeHidden', '.NET NetworkInterface.GetAllNetworkInterfaces'] },
   ]) {
     const { root, fake, controller } = await makeController({ inspectAdapter: async () => inspection });
     const staleId = '9'.repeat(32);
