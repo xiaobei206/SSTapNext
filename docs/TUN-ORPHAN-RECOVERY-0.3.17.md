@@ -40,3 +40,8 @@
 ## 回滚
 
 使用 GitHub Revert 回滚本次聚焦提交；不重写历史、不强推、不覆盖 v0.3.16 Release 资产。正式修复版本必须递增至 0.3.17。
+
+
+## 设计补充：必须确认 Agent 也已退出
+
+代码复核发现，原有双重核验只确认历史 sing-box PID 和相关接口，没有检查是否仍有旧的 `SstapNext.Agent.exe` 进程。为避免旧 Agent 在恢复后继续写状态或清理资源，安全恢复还必须同时确认没有其他 SSTap Next Agent 实例运行。PowerShell 侧在启动检查用 Agent 之前枚举现存 Agent 进程；.NET 检查器侧枚举 Agent 进程时排除自身 PID，并报告其他 Agent 数量。只有两侧检查完整且其他 Agent 数量均为 0 才可恢复。任一检查失败或仍有其他 Agent，继续 fail-closed。
