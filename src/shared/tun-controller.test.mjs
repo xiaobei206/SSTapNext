@@ -180,7 +180,7 @@ test('recovers a dead-core running orphan only after dual-source proof all SSTap
   assert.equal(recovered.status, 'stopped_with_warning');
   assert.equal(recovered.corePid, null);
   assert.match(recovered.lastError, /双重只读核验确认旧 sing-box PID 4968 已退出/);
-  assert.ok((await fs.readdir(staleDirectory)).includes('.verified-orphaned-running-recovered-0.3.17'));
+  assert.ok((await fs.readdir(staleDirectory)).includes('.verified-orphaned-running-recovered-0.3.18'));
   assert.equal(await fs.readFile(path.join(staleDirectory, 'sing-box.log'), 'utf8'), 'preserve-orphan-log');
   await controller.disconnect();
 });
