@@ -87,15 +87,17 @@ class TunController {
         "  $allAdapters = @(Get-NetAdapter -IncludeHidden -ErrorAction Stop)",
         "  $foundAdapters = @($allAdapters | Where-Object { try { ([guid]$_.InterfaceGuid).ToString('D') -eq $requested.ToString('D') } catch { $false } })",
         "  $relatedAdapters = @($allAdapters | Where-Object { ([string]$_.Name -ieq 'SSTap Next') -or ([string]$_.InterfaceDescription -like 'sing-tun Tunnel*') } | ForEach-Object { $candidate = $_; $candidateAddresses = @(Get-NetIPAddress -InterfaceIndex $candidate.ifIndex -ErrorAction SilentlyContinue | ForEach-Object { [string]$_.IPAddress } | Where-Object { $_ }); [ordered]@{ name = [string]$candidate.Name; description = [string]$candidate.InterfaceDescription; id = ([guid]$candidate.InterfaceGuid).ToString('B'); status = [string]$candidate.Status; addresses = $candidateAddresses } })",
+        "  $agentProcessCheckComplete = $true; $activeAgentProcessCount = -1",
+        "  try { $activeAgentProcessCount = @(Get-CimInstance Win32_Process -Filter \"Name='SstapNext.Agent.exe'\" -ErrorAction Stop).Count } catch { $agentProcessCheckComplete = $false }",
         "  $processCheckComplete = $true; $singBoxProcessRunning = $false; $processName = $null",
         "  try { $targetProcess = Get-Process -Id $requestedPid -ErrorAction Stop; $processName = [string]$targetProcess.ProcessName; $singBoxProcessRunning = ($processName -ieq 'sing-box') } catch { if ($_.CategoryInfo.Category -ne 'ObjectNotFound') { $processCheckComplete = $false } }",
-        "  if ($foundAdapters.Count -ne 1) { [ordered]@{ found = $false; inspectionComplete = $true; matchCount = $foundAdapters.Count; relatedAdapters = $relatedAdapters; processId = $requestedPid; processCheckComplete = $processCheckComplete; singBoxProcessRunning = $singBoxProcessRunning; processName = $processName; inspectionError = 'Get-NetAdapter 未能唯一定位历史 GUID' } | ConvertTo-Json -Compress -Depth 6; exit 0 }",
+        "  if ($foundAdapters.Count -ne 1) { [ordered]@{ found = $false; inspectionComplete = $true; matchCount = $foundAdapters.Count; relatedAdapters = $relatedAdapters; processId = $requestedPid; processCheckComplete = $processCheckComplete; singBoxProcessRunning = $singBoxProcessRunning; processName = $processName; agentProcessCheckComplete = $agentProcessCheckComplete; activeAgentProcessCount = $activeAgentProcessCount; inspectionError = 'Get-NetAdapter 未能唯一定位历史 GUID' } | ConvertTo-Json -Compress -Depth 6; exit 0 }",
         "  $adapter = $foundAdapters[0]",
         "  $addresses = @(Get-NetIPAddress -InterfaceIndex $adapter.ifIndex -ErrorAction SilentlyContinue | ForEach-Object { [string]$_.IPAddress } | Where-Object { $_ })",
         "  $rawStatus = [string]$adapter.Status",
         "  $status = if ($rawStatus -in @('Down','Disconnected')) { 'Down' } else { $rawStatus }",
         "  $active = ($status -eq 'Up') -or ($addresses -contains '172.19.0.1')",
-        "  [ordered]@{ found = $true; inspectionComplete = $true; matchCount = 1; name = [string]$adapter.Name; description = [string]$adapter.InterfaceDescription; id = ([guid]$adapter.InterfaceGuid).ToString('B'); status = $status; rawStatus = $rawStatus; addresses = $addresses; relatedAdapters = $relatedAdapters; processId = $requestedPid; processCheckComplete = $processCheckComplete; singBoxProcessRunning = $singBoxProcessRunning; processName = $processName; expectedTunAddress = '172.19.0.1'; operationallyActive = $active } | ConvertTo-Json -Compress -Depth 6",
+        "  [ordered]@{ found = $true; inspectionComplete = $true; matchCount = 1; name = [string]$adapter.Name; description = [string]$adapter.InterfaceDescription; id = ([guid]$adapter.InterfaceGuid).ToString('B'); status = $status; rawStatus = $rawStatus; addresses = $addresses; relatedAdapters = $relatedAdapters; processId = $requestedPid; processCheckComplete = $processCheckComplete; singBoxProcessRunning = $singBoxProcessRunning; processName = $processName; agentProcessCheckComplete = $agentProcessCheckComplete; activeAgentProcessCount = $activeAgentProcessCount; expectedTunAddress = '172.19.0.1'; operationallyActive = $active } | ConvertTo-Json -Compress -Depth 6",
         "} catch { [ordered]@{ found = $false; inspectionComplete = $false; inspectionError = $_.Exception.Message } | ConvertTo-Json -Compress -Depth 6; exit 0 }"
       ].join('; ');
 
@@ -104,7 +106,9 @@ class TunController {
         && inspection.matchCount === 0
         && allRelatedAdaptersInactive(inspection)
         && inspection.processCheckComplete === true
-        && inspection.singBoxProcessRunning === false;
+        && inspection.singBoxProcessRunning === false
+        && inspection.agentProcessCheckComplete === true
+        && inspection.activeAgentProcessCount === 0;
 
       let powershellInspection = null;
       let powershellFailure = null;
@@ -116,7 +120,9 @@ class TunController {
         powershellInspection = JSON.parse(output || 'null');
         if (powershellInspection?.found === true
           && powershellInspection.processCheckComplete === true
-          && powershellInspection.singBoxProcessRunning === false) return powershellInspection;
+          && powershellInspection.singBoxProcessRunning === false
+          && powershellInspection.agentProcessCheckComplete === true
+          && powershellInspection.activeAgentProcessCount === 0) return powershellInspection;
         powershellFailure = powershellInspection?.inspectionError || JSON.stringify(powershellInspection);
       } catch (error) {
         powershellFailure = String(error.message || error);
@@ -134,7 +140,9 @@ class TunController {
         agentInspection = JSON.parse(output || 'null');
         if (agentInspection?.found === true
           && agentInspection.processCheckComplete === true
-          && agentInspection.singBoxProcessRunning === false) return agentInspection;
+          && agentInspection.singBoxProcessRunning === false
+          && agentInspection.otherAgentProcessCheckComplete === true
+          && agentInspection.otherAgentProcessCount === 0) return agentInspection;
         agentFailure = agentInspection?.error || agentInspection?.inspectionError || JSON.stringify(agentInspection);
       } catch (error) {
         agentFailure = String(error.message || error);
@@ -143,6 +151,8 @@ class TunController {
       if (confirmsAbsent(powershellInspection) && confirmsAbsent(agentInspection)) {
         return {
           found: false, absent: true, inspectionComplete: true, matchCount: 0, relatedAdapters: [...relatedAdaptersOf(powershellInspection), ...relatedAdaptersOf(agentInspection)],
+          agentProcessCheckComplete: true, activeAgentProcessCount: 0,
+          otherAgentProcessCheckComplete: true, otherAgentProcessCount: 0,
           id: '{' + normalizedId + '}', processId: requestedPid,
           processCheckComplete: true, singBoxProcessRunning: false,
           expectedTunAddress: '172.19.0.1', operationallyActive: false,
@@ -303,6 +313,8 @@ class TunController {
       if (current.found !== false || current.inspectionComplete !== true
         || current.matchCount !== 0 || !allRelatedAdaptersInactive(current)
         || current.processCheckComplete !== true || current.singBoxProcessRunning !== false
+        || current.agentProcessCheckComplete !== true || current.activeAgentProcessCount !== 0
+        || current.otherAgentProcessCheckComplete !== true || current.otherAgentProcessCount !== 0
         || current.expectedTunAddress !== '172.19.0.1'
         || current.operationallyActive !== false
         || !sources.includes('PowerShell Get-NetAdapter -IncludeHidden')
@@ -310,7 +322,9 @@ class TunController {
         throw new Error('网卡不存在判定未通过双重核验：' + JSON.stringify({
           found: current?.found, matchCount: current?.matchCount,
           relatedAdapters, processCheckComplete: current?.processCheckComplete,
-          singBoxProcessRunning: current?.singBoxProcessRunning, verificationSources: sources,
+          singBoxProcessRunning: current?.singBoxProcessRunning,
+          agentProcessCheckComplete: current?.agentProcessCheckComplete, activeAgentProcessCount: current?.activeAgentProcessCount,
+          otherAgentProcessCheckComplete: current?.otherAgentProcessCheckComplete, otherAgentProcessCount: current?.otherAgentProcessCount, verificationSources: sources,
         }));
       }
       return {
@@ -323,6 +337,8 @@ class TunController {
     if (!current || current.found !== true || current.ambiguous === true
       || current.inspectionError
       || current.processCheckComplete !== true || current.singBoxProcessRunning !== false
+      || current.agentProcessCheckComplete !== true || current.activeAgentProcessCount !== 0
+      || current.otherAgentProcessCheckComplete !== true || current.otherAgentProcessCount !== 0
       || current.name !== 'SSTap Next'
       || typeof current.description !== 'string'
       || !current.description.startsWith('sing-tun Tunnel')
@@ -338,6 +354,8 @@ class TunController {
         id: current?.id, status: current?.status, addresses: current?.addresses,
         processCheckComplete: current?.processCheckComplete,
         singBoxProcessRunning: current?.singBoxProcessRunning,
+        agentProcessCheckComplete: current?.agentProcessCheckComplete, activeAgentProcessCount: current?.activeAgentProcessCount,
+        otherAgentProcessCheckComplete: current?.otherAgentProcessCheckComplete, otherAgentProcessCount: current?.otherAgentProcessCount,
         relatedAdapters, operationallyActive: current?.operationallyActive,
         inspectionError: current?.inspectionError,
       }));
@@ -364,6 +382,8 @@ class TunController {
     if (inspection?.found !== false || inspection?.absent !== true
       || inspection?.inspectionComplete !== true || inspection?.matchCount !== 0
       || inspection?.processCheckComplete !== true || inspection?.singBoxProcessRunning !== false
+      || inspection?.agentProcessCheckComplete !== true || inspection?.activeAgentProcessCount !== 0
+      || inspection?.otherAgentProcessCheckComplete !== true || inspection?.otherAgentProcessCount !== 0
       || inspection?.expectedTunAddress !== '172.19.0.1' || inspection?.operationallyActive !== false
       || relatedAdapters.length === 0 || !allRelatedAdaptersInactive(inspection)
       || !sources.includes('PowerShell Get-NetAdapter -IncludeHidden')
@@ -371,7 +391,9 @@ class TunController {
       console.warn('[TUN-RECOVERY] 运行中孤儿会话未通过双重只读核验，保持启动锁：' + JSON.stringify({
         found: inspection?.found, absent: inspection?.absent, inspectionComplete: inspection?.inspectionComplete,
         matchCount: inspection?.matchCount, processCheckComplete: inspection?.processCheckComplete,
-        singBoxProcessRunning: inspection?.singBoxProcessRunning, relatedAdapters,
+        singBoxProcessRunning: inspection?.singBoxProcessRunning,
+        agentProcessCheckComplete: inspection?.agentProcessCheckComplete, activeAgentProcessCount: inspection?.activeAgentProcessCount,
+        otherAgentProcessCheckComplete: inspection?.otherAgentProcessCheckComplete, otherAgentProcessCount: inspection?.otherAgentProcessCount, relatedAdapters,
         verificationSources: sources, inspectionError: inspection?.inspectionError,
       }));
       return null;
