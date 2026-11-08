@@ -562,3 +562,12 @@
 - 验证：CI run [42369688144](https://github.com/xiaobei206/SSTapNext/actions/runs/42369688144) 首次 attempt **107/107 PASS，0 fail**；`npm run verify:lock` **704/704 PASS**。Windows workflow run [42369688117](https://github.com/xiaobei206/SSTapNext/actions/runs/42369688117) success；因 v0.3.16 Release 已存在，重复 lock/build/installer SHA/publish/upload steps 按设计 skip。
 - 范围边界：仅修改 `src/shared/tun-controller.test.mjs` 的模拟 Agent；没有修改 .NET Agent、TUN runtime、产品功能、依赖、package 版本或 Release assets。不需要重新发布 v0.3.16 安装包。
 - 仍 NOT RUN：用户 Windows 10/11 的系统 TUN、真实节点公网出口/DNS/UDP/QUIC、实时统计、Direct 流量归属和 10 轮重连验收；Agent 白名单全部恶意配置形态的独立 .NET 行为级负向测试亦尚未实现/执行。
+
+
+## 2026-11-08 — v0.3.17 TUN 孤儿会话恢复：先行设计
+
+- 用户报告 v0.3.16 启动时报遗留 TUN 会话 30 秒未安全断开。实机 `status.json` 保持 `running`、`corePid=4968`，但 Agent/sing-box 进程均不存在；心跳和 sing-box 日志在凌晨停止。
+- 用户运行已安装 Agent 的只读诊断：`inspectionComplete=true`、`ambiguous=false`、`processCheckComplete=true`、`singBoxProcessRunning=false`；四个 SSTap Next `sing-tun Tunnel` 对象均 `NotPresent`、无地址、无 inspectionError。证据支持孤儿状态，而不是活动 TUN 资源。
+- 用户纠正：`SSTAP 1 / TAP-Windows Adapter V9` 属于旧版 SSTap，与 SSTap Next 无关；严禁对其执行任何操作。
+- 设计文档 `docs/TUN-ORPHAN-RECOVERY-0.3.17.md` 已先行提交，commit `da9e79853bf31d004cd7ba65cb2c783e9eef1a12`。计划在 0.3.17 中仅对已确认核心 PID 不存在、双重枚举完整且所有 SSTap Next sing-tun 接口均非活动/无地址的运行中孤儿会话做归档恢复；其他情况保持 fail-closed；桌面端停止等待改为至少 45 秒。
+- 本条记录时尚未改代码、版本号或测试；测试、CI、Windows 构建和真实实机验收均 NOT RUN。
