@@ -11,7 +11,7 @@
 ## 修复方案
 
 - 对运行中但疑似孤儿的旧会话，使用现有 PowerShell + .NET 双重只读核验。
-- 只有历史 sing-box PID 明确不存在、两种枚举都完整成功、至少发现一个相关 SSTap Next sing-tun 对象且全部为 Down/Disconnected/NotPresent、无 IP、无检查错误时，才归档旧状态并转为 `stopped_with_warning`。
+- 只有历史 sing-box PID 明确不存在、两种枚举都完整成功、没有其他 `SstapNext.Agent.exe` 实例、至少发现一个相关 SSTap Next sing-tun 对象且全部为 Down/Disconnected/NotPresent、无 IP、无检查错误时，才归档旧状态并转为 `stopped_with_warning`。
 - 核验不完整、发现活动接口、仍有 IP 或核心仍在运行时，不自动解锁，保持 fail-closed。
 - 将等待 Agent 正常停止的桌面端预算由 30 秒提高到 45 秒，覆盖 Agent 最多 18 秒停止核心 + 18 秒等待接口释放并留有余量。达到截止时间仍不会自动释放锁。
 - 原始状态归档并保留 sing-box 日志；不删除网卡、驱动、路由、DNS，也不触碰旧版 SSTap 的 TAP 网卡。
