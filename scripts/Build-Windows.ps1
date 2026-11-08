@@ -85,7 +85,7 @@ Write-Host '[8/8] 最终环境诊断...' -ForegroundColor Cyan
 if ($LASTEXITCODE -ne 0) { throw '最终环境诊断失败。' }
 
 Write-Host ''
-Write-Host '[SUCCESS] SSTap Next 0.3.16 构建流程完成。' -ForegroundColor Green
+Write-Host '[SUCCESS] SSTap Next 0.3.17 构建流程完成。' -ForegroundColor Green
 if ($installer) {
     $installerHash = (Get-FileHash -LiteralPath $installer.FullName -Algorithm SHA256).Hash
     Write-Host "安装包：$($installer.FullName)"
