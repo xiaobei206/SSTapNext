@@ -212,6 +212,36 @@ test('does not recover a running orphan when any SSTap Next adapter is active', 
   assert.equal(await controller._verifyOrphanedRunningSession(status), null);
 });
 
+test('keeps the orphan lock when another Agent exists or Agent liveness cannot be verified', async (t) => {
+  const inactiveAdapter = {
+    name: 'SSTap Next', description: 'sing-tun Tunnel #3',
+    id: '{8AC250D2-5056-026B-1DA1-96E3759C87AB}',
+    status: 'NotPresent', addresses: [], operationallyActive: false, inspectionError: null,
+  };
+  const base = {
+    found: false, absent: true, inspectionComplete: true, matchCount: 0,
+    relatedAdapters: [inactiveAdapter],
+    processCheckComplete: true, singBoxProcessRunning: false,
+    expectedTunAddress: '172.19.0.1', operationallyActive: false,
+    agentProcessCheckComplete: true, activeAgentProcessCount: 0,
+    otherAgentProcessCheckComplete: true, otherAgentProcessCount: 0,
+    verificationSources: [
+      'PowerShell Get-NetAdapter -IncludeHidden',
+      '.NET NetworkInterface.GetAllNetworkInterfaces',
+    ],
+  };
+  for (const inspection of [
+    { ...base, activeAgentProcessCount: 1, otherAgentProcessCount: 1 },
+    { ...base, otherAgentProcessCheckComplete: false, otherAgentProcessCount: -1 },
+  ]) {
+    const { root, fake, controller } = await makeController({ inspectAdapter: async () => inspection });
+    t.after(async () => { fake.clear(); await fs.rm(root, { recursive: true, force: true }); });
+    assert.equal(await controller._verifyOrphanedRunningSession({
+      status: 'running', interfaceName: 'SSTap Next', corePid: 4968,
+    }), null);
+  }
+});
+
 test('recovers an orphaned prior session before opening a new TUN session', async (t) => {
   const { root, fake, controller } = await makeController();
   t.after(async () => { fake.clear(); await fs.rm(root, { recursive: true, force: true }); });
