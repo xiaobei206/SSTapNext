@@ -68,6 +68,7 @@ internal static class TunRuntime
                 .Select(InspectNetworkInterface)
                 .ToArray();
             var process = InspectProcess(requestedPid);
+            var otherAgents = InspectOtherAgentProcesses();
 
             if (matches.Length != 1)
             {
@@ -82,7 +83,9 @@ internal static class TunRuntime
                     processId = requestedPid,
                     processCheckComplete = process.CheckComplete,
                     singBoxProcessRunning = process.SingBoxRunning,
-                    processName = process.ProcessName
+                    processName = process.ProcessName,
+                    otherAgentProcessCheckComplete = otherAgents.CheckComplete,
+                    otherAgentProcessCount = otherAgents.Count
                 }, new JsonSerializerOptions(JsonSerializerDefaults.Web)));
                 return 0;
             }
@@ -105,7 +108,9 @@ internal static class TunRuntime
                 singBoxProcessRunning = process.SingBoxRunning,
                 processName = process.ProcessName,
                 expectedTunAddress = ExpectedTunAddress,
-                operationallyActive = adapter.OperationallyActive
+                operationallyActive = adapter.OperationallyActive,
+                otherAgentProcessCheckComplete = otherAgents.CheckComplete,
+                otherAgentProcessCount = otherAgents.Count
             }, new JsonSerializerOptions(JsonSerializerDefaults.Web)));
             return 0;
         }
@@ -126,6 +131,32 @@ internal static class TunRuntime
         bool OperationallyActive, string? InspectionError);
 
     private sealed record ProcessInspection(bool CheckComplete, bool SingBoxRunning, string? ProcessName);
+    private sealed record OtherAgentProcessInspection(bool CheckComplete, int Count);
+
+    private static OtherAgentProcessInspection InspectOtherAgentProcesses()
+    {
+        try
+        {
+            var processes = Process.GetProcessesByName("SstapNext.Agent");
+            var otherCount = 0;
+            foreach (var process in processes)
+            {
+                try
+                {
+                    if (process.Id != Environment.ProcessId) otherCount++;
+                }
+                finally
+                {
+                    process.Dispose();
+                }
+            }
+            return new OtherAgentProcessInspection(true, otherCount);
+        }
+        catch
+        {
+            return new OtherAgentProcessInspection(false, -1);
+        }
+    }
 
     private static AdapterInspection InspectNetworkInterface(NetworkInterface adapter)
     {
