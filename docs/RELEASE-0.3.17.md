@@ -1,6 +1,6 @@
-# SSTap Next 0.3.17 — TUN 孤儿会话安全恢复
+# SSTap Next 0.3.17 — TUN 孤儿会话安全恢复（已发布，但被 0.3.18 supersede）
 
-状态：开发中，尚未发布。正式 Release v0.3.16 保持不变，不覆盖既有资产。
+状态：GitHub Release 已由自动 workflow 创建。该安装包构建于最终 Agent 存活检查补丁之前，**不要将它作为本故障的最终修复版安装**。已发布资产保留、不覆盖；完整修复交付目标改为 v0.3.18，详见 `docs/RELEASE-0.3.18.md`。
 
 ## 问题与根因
 
@@ -18,9 +18,9 @@
 
 ## 验证
 
-- Node 自动化测试：待 GitHub Actions。
+- Node 自动化测试：部分较早 SHA 的工作流曾运行，但不代表最终 Agent 存活检查代码；最终验收以 v0.3.18 Actions 为准。
 - package-lock 校验：待 GitHub Actions。
-- Windows Agent / TS/Vite / NSIS / 安装包构建：待 GitHub Actions。
+- Windows workflow 曾针对较早 SHA 自动创建 v0.3.17 Release，但它不包含后来补入的完整 Agent 存活检查；不得把该构建当作 v0.3.18 的验证。
 - 用户 Windows 实机 TUN 连接、断开、至少 10 次重连：NOT RUN，必须安装候选版本后验收。
 - Release EXE、blockmap、SHA-256：待发布流程完成后核实；不得在发布前填入猜测值。
 
