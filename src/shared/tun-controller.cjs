@@ -463,7 +463,7 @@ class TunController {
             const temporaryStatusPath = statusPath + '.recovering';
             await fs.writeFile(temporaryStatusPath, JSON.stringify(status, null, 2), 'utf8');
             await fs.rename(temporaryStatusPath, statusPath);
-            await fs.writeFile(path.join(directory, '.verified-orphaned-running-recovered-0.3.17'), JSON.stringify({
+            await fs.writeFile(path.join(directory, '.verified-orphaned-running-recovered-0.3.18'), JSON.stringify({
               recoveredAt,
               source: verifiedOrphan.verificationSources,
               corePid: verifiedOrphan.corePid,
