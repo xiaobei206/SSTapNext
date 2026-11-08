@@ -310,6 +310,8 @@ test('recovers an inactive Wintun object using exact-GUID live inspection', asyn
         found: true, name: 'SSTap Next', description: 'sing-tun Tunnel #3', id: adapterId,
         status: 'Down', type: 53, addresses: [], expectedTunAddress: '172.19.0.1', operationallyActive: false,
         processCheckComplete: true, singBoxProcessRunning: false,
+        agentProcessCheckComplete: true, activeAgentProcessCount: 0,
+        otherAgentProcessCheckComplete: true, otherAgentProcessCount: 0,
       };
     },
   });
