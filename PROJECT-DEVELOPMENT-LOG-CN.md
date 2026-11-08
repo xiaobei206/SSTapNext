@@ -592,3 +592,11 @@
 
 - 追加实现：`src/agent/SstapNext.Agent/Core/TunRuntime.cs` 现在在检查结果中报告其他 Agent 进程数量（排除检查器自身）；PowerShell 同样枚举已存在的 `SstapNext.Agent.exe`。孤儿恢复及历史 inactive-cleanup 恢复均要求两侧检查成功且没有其他 Agent，避免旧 Agent 与新会话竞争。
 - 新增负向测试：其他 Agent 存在、Agent 进程检查不完整时不得恢复；活动接口时不得恢复。最新测试提交 `97cc18edb7fac413a8f27436b80e47b1cbc87ab8`。截至此日志更新，最新 Node CI / Windows workflow 仍待最终结果。
+
+
+## 2026-11-08 — v0.3.17 发布时序问题与最终交付转为 v0.3.18
+
+- 发现 GitHub Actions 在 package version 更新到 0.3.17 后自动创建了 Release `v0.3.17`（target `184d265e2c0642ecfc1cb7ad5eb0b14c3a3402c3`）。该构建早于最终 `SstapNext.Agent.exe` 存活检查补丁，不包含完整的双重 Agent 存活证明。
+- 不覆盖、不重写 v0.3.17 的既有 Release 资产；已在 `docs/RELEASE-0.3.17.md` 和 CHANGELOG 明确标注该版本不作为本故障最终修复版。最终完整交付版本递增为 v0.3.18。
+- v0.3.18 设计与发布说明已先行创建：`docs/TUN-ORPHAN-RECOVERY-0.3.18.md`、`docs/RELEASE-0.3.18.md`。下一步将统一 package/lock/Agent/build banner 与恢复标记版本，再以最终 SHA 的 CI 和完整 Windows workflow 作为验收依据。
+- 不建议用户安装 v0.3.17 来解决本次故障。真实 Windows TUN 验收仍 NOT RUN。
