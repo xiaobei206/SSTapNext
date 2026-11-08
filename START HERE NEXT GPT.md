@@ -4,16 +4,16 @@
 >
 > 仓库：https://github.com/xiaobei206/SSTapNext  
 > 唯一开发线：**main**  
- > 当前正式发布版本：**0.3.16**（GitHub Release）
-> main 当前开发版本：**0.3.17（开发中，未发布）**  
-上一正式 Release：**0.3.16**  
+ > 最新公开 Release：**0.3.17**（已发布但不含最终 Agent 存活检查；本故障修复请等待 0.3.18）
+> main 当前开发版本：**0.3.18（开发中，未发布）**  
+上一完整安全基线：**0.3.16**  
 > 本文件是新对话的第一入口；如果本文件与 GitHub 实际状态不一致，以实时仓库、Actions 和 Release 为准，并先修正文档。
 
 ## 2026-11-08 当前 P0：TUN 孤儿会话恢复
 
 - 用户在 v0.3.16 启动时遇到遗留会话 30 秒超时。实机证据：status 仍为 running、corePid 4968，但 Agent/sing-box 进程均不存在；Agent 双重枚举报告所有 SSTap Next `sing-tun Tunnel` 相关对象均 NotPresent、无 IP、无检查错误。
 - 与本故障无关的旧版 `SSTAP 1 / TAP-Windows Adapter V9` 必须完全排除，不可修改或删除。
-- 设计先行文档：`docs/TUN-ORPHAN-RECOVERY-0.3.17.md`。目标正式修复版本 0.3.17：仅在双重核验确认旧核心 PID 不存在且所有 SSTap Next TUN 接口均不活动/无地址后，归档孤儿状态并安全解除锁；任何歧义仍 fail-closed。桌面端停止等待上限从 30 秒调整为至少 45 秒，以覆盖 Agent 18+18 秒预算。
+- 设计先行文档：`docs/TUN-ORPHAN-RECOVERY-0.3.17.md`。目标正式修复版本 0.3.18：仅在双重核验确认旧核心 PID 不存在且所有 SSTap Next TUN 接口均不活动/无地址后，归档孤儿状态并安全解除锁；任何歧义仍 fail-closed。桌面端停止等待上限从 30 秒调整为至少 45 秒，以覆盖 Agent 18+18 秒预算。
 - 当前状态：设计先行完成；运行时代码、Agent 检查器、回归测试与 0.3.17 版本字段已提交 main。自动化/Windows 构建仍待当前最新 Actions；真实 Windows TUN 验收 NOT RUN。
 
 ---
@@ -43,14 +43,14 @@
 
 ---
 
-## 1. 当前可信基线（Release 已核实至 2026-11-07；main 正在开发 0.3.17）
+## 1. 当前可信基线（Release 已核实至 2026-11-08；main 正在开发 0.3.18）
 
 ### 仓库与版本
 
 - GitHub：xiaobei206/SSTapNext
 - 唯一开发入口：main；不新建 feature 分支或 PR。
 - 当前正式 Release：v0.3.16（2026-11-07），https://github.com/xiaobei206/SSTapNext/releases/tag/v0.3.16
-- 当前公开 Release：v0.3.16；main package / Agent version 已递增至 0.3.17（开发中，未发布）；上一正式 Release：v0.3.16。
+- 当前公开 Release：v0.3.17（构建早于最终 Agent 存活检查，不作为本故障最终修复版）；main package / Agent version 正在递增至 0.3.18；上一完整安全基线：v0.3.16。
 - v0.3.16 Release target commit：`6245eab7e953ff13c0f765691a8ad1692e15f14e`；本次收尾开始时 main HEAD：`f3e27bfba1a3480317fa7555c9296dd38fc5d2fa`（比发布目标只多一个文档提交，运行时代码一致）。
 - 为消除首次 CI 偶发状态 JSON 解析失败，追加了仅测试夹具提交 `6ba1c2e6dacdfa59c62c109190086597578bf9a2`；该提交只改 `src/shared/tun-controller.test.mjs`，Node CI run [42369688144](https://github.com/xiaobei206/SSTapNext/actions/runs/42369688144) **107/107 PASS、0 fail，lock 704/704 PASS**。运行时代码、版本号和 v0.3.16 发布资产未改动。
 - 旧分支 `feature/sstap-rule-library-0312` 不再使用；PR #1 仅是历史迁移记录。
