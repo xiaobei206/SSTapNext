@@ -600,3 +600,14 @@
 - 不覆盖、不重写 v0.3.17 的既有 Release 资产；已在 `docs/RELEASE-0.3.17.md` 和 CHANGELOG 明确标注该版本不作为本故障最终修复版。最终完整交付版本递增为 v0.3.18。
 - v0.3.18 设计与发布说明已先行创建：`docs/TUN-ORPHAN-RECOVERY-0.3.18.md`、`docs/RELEASE-0.3.18.md`。下一步将统一 package/lock/Agent/build banner 与恢复标记版本，再以最终 SHA 的 CI 和完整 Windows workflow 作为验收依据。
 - 不建议用户安装 v0.3.17 来解决本次故障。真实 Windows TUN 验收仍 NOT RUN。
+
+
+## 2026-11-08 — v0.3.18 最终修复版发布完成
+
+- 正式 Release：`https://github.com/xiaobei206/SSTapNext/releases/tag/v0.3.18`，target commit `5d20a622a9f55a66d9cc2801ab699bb4aaecc20e`。v0.3.17 资产保留、不覆盖，并在文档中标明其构建早于最终 Agent 存活检查；本故障应使用 v0.3.18。
+- Node CI run [42435813089](https://github.com/xiaobei206/SSTapNext/actions/runs/42435813089)：`npm test` 110/110 PASS、0 fail；`npm run verify:lock` 成功。
+- Windows Release run [42435813071](https://github.com/xiaobei206/SSTapNext/actions/runs/42435813071)，job `128594386324`：Node tests 110/110、sing-box 58/58、Agent .NET 10、TS/Vite、NSIS、installer SHA、Release 与 artifact 上传均成功。
+- 安装包 `SSTap.Next-0.3.18-x64.exe` 174,901,866 bytes，SHA-256 `a2d0769e60e963ac7ea3fb271b771e15795e90bb4a0de250ab27fc2153e0e826`；blockmap 182,804 bytes，SHA-256 `3a60768b7bbb709d5a020f51e06c08fce0660c1a3745075b850d822c25188c95`；sidecar 93 bytes，asset digest `b7b73fc939eacc99b42e47b37b23f5c7fbfb4ca169e6e18c798c32922cd3112b`。
+- Workflow artifact ID `13599562949`，ZIP SHA-256 `218fc8aba2ced1ff0e43b233aba3f88bfe554c56ca727c9ed458d88796aa09bc`。
+- 实现安全条件：必须确认历史 sing-box PID 不存在、PowerShell 与 .NET 两侧均确认没有其他 Agent 实例、相关 SSTap Next TUN 接口均不存在/非活动且无 IP；任何歧义 fail-closed。正常停止等待 45 秒，超时本身不解除锁。
+- **NOT RUN：** 用户 Windows 实机安装 v0.3.18 后的系统 TUN 启停、网络出口/DNS、断开恢复和至少 10 轮重连。CI/构建成功不等于实机 TUN 验收。
