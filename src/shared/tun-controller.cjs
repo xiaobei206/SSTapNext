@@ -351,6 +351,39 @@ class TunController {
     };
   }
 
+  async _verifyOrphanedRunningSession(status) {
+    // A running status can survive an OS shutdown after the Agent has disappeared.
+    // Never infer safety from the status file alone: require the existing dual-source
+    // inspection to prove the core PID is gone and every SSTap Next TUN object is inactive.
+    if (status?.status !== 'running' || status.interfaceName !== 'SSTap Next'
+      || !Number.isSafeInteger(Number(status.corePid)) || Number(status.corePid) <= 0) return null;
+
+    const inspection = await this.inspectAdapter('{00000000-0000-0000-0000-000000000000}', Number(status.corePid));
+    const sources = Array.isArray(inspection?.verificationSources) ? inspection.verificationSources : [];
+    const relatedAdapters = relatedAdaptersOf(inspection);
+    if (inspection?.found !== false || inspection?.absent !== true
+      || inspection?.inspectionComplete !== true || inspection?.matchCount !== 0
+      || inspection?.processCheckComplete !== true || inspection?.singBoxProcessRunning !== false
+      || inspection?.expectedTunAddress !== '172.19.0.1' || inspection?.operationallyActive !== false
+      || relatedAdapters.length === 0 || !allRelatedAdaptersInactive(inspection)
+      || !sources.includes('PowerShell Get-NetAdapter -IncludeHidden')
+      || !sources.includes('.NET NetworkInterface.GetAllNetworkInterfaces')) {
+      console.warn('[TUN-RECOVERY] 运行中孤儿会话未通过双重只读核验，保持启动锁：' + JSON.stringify({
+        found: inspection?.found, absent: inspection?.absent, inspectionComplete: inspection?.inspectionComplete,
+        matchCount: inspection?.matchCount, processCheckComplete: inspection?.processCheckComplete,
+        singBoxProcessRunning: inspection?.singBoxProcessRunning, relatedAdapters,
+        verificationSources: sources, inspectionError: inspection?.inspectionError,
+      }));
+      return null;
+    }
+
+    return {
+      corePid: Number(status.corePid),
+      relatedAdapters,
+      verificationSources: sources,
+    };
+  }
+
   async recoverStaleSessions() {
     if (this.recoveryPromise) return this.recoveryPromise;
     this.recoveryPromise = (async () => {
@@ -381,9 +414,48 @@ class TunController {
         if (status.sessionId !== expectedId) throw new Error(`遗留 TUN 状态 Session ID 不匹配：${directory}`);
 
         const terminal = new Set(['stopped', 'stopped_with_warning', 'error']);
+
+        // Recover only the known OS-shutdown orphan shape. The old status is archived,
+        // and release is allowed only after PowerShell + .NET both prove the old core
+        // is gone and every SSTap Next sing-tun interface is NotPresent/Down with no IP.
+        if (status.status === 'running' && status.interfaceName === 'SSTap Next') {
+          const verifiedOrphan = await this._verifyOrphanedRunningSession(status);
+          if (verifiedOrphan) {
+            const legacyStatusPath = path.join(directory, 'status.orphaned-running-legacy.json');
+            const originalStatus = await fs.readFile(statusPath, 'utf8');
+            try {
+              await fs.writeFile(legacyStatusPath, originalStatus, { encoding: 'utf8', flag: 'wx' });
+            } catch (error) {
+              if (error?.code !== 'EEXIST') throw error;
+            }
+            const recoveredAt = new Date().toISOString();
+            status = {
+              ...status,
+              status: 'stopped_with_warning',
+              corePid: null,
+              updatedAt: recoveredAt,
+              lastError: '已通过 PowerShell 与 .NET 双重只读核验确认旧 sing-box PID '
+                + verifiedOrphan.corePid + ' 已退出，所有 SSTap Next sing-tun 接口均不存在或非活动且没有 IP 地址。'
+                + '已归档旧 running 状态并解除孤儿会话锁；保留原始状态与日志，不删除网卡、驱动、路由或 DNS。',
+            };
+            const temporaryStatusPath = statusPath + '.recovering';
+            await fs.writeFile(temporaryStatusPath, JSON.stringify(status, null, 2), 'utf8');
+            await fs.rename(temporaryStatusPath, statusPath);
+            await fs.writeFile(path.join(directory, '.verified-orphaned-running-recovered-0.3.17'), JSON.stringify({
+              recoveredAt,
+              source: verifiedOrphan.verificationSources,
+              corePid: verifiedOrphan.corePid,
+              relatedAdapters: verifiedOrphan.relatedAdapters,
+            }, null, 2), 'utf8');
+            console.warn('[TUN-RECOVERY] 已安全归档确认无活动资源的孤儿 TUN 会话：' + expectedId);
+          }
+        }
+
         if (!terminal.has(status.status)) {
           await fs.writeFile(path.join(directory, 'stop.signal'), `${expectedId}\n`, 'utf8');
-          const deadline = Date.now() + 30000;
+          // Agent shutdown can take 18s for the core plus 18s for adapter removal.
+          // Keep a margin; reaching the deadline never releases the lock by itself.
+          const deadline = Date.now() + 45000;
           while (Date.now() < deadline) {
             await delay(400);
             try { status = JSON.parse(await fs.readFile(statusPath, 'utf8')); }
@@ -462,7 +534,7 @@ class TunController {
           }
         }
         if (!status || !terminal.has(status.status)) {
-          throw new Error(`遗留 TUN 会话在 30 秒内没有完成安全断开：${directory}。请先检查网卡和 Agent 日志。`);
+          throw new Error(`遗留 TUN 会话在 45 秒内没有完成安全断开：${directory}。请先检查网卡和 Agent 日志。`);
         }
         for (const name of ['config.json', 'session.json', 'heartbeat.touch', 'stop.signal']) {
           await fs.rm(path.join(directory, name), { force: true }).catch(() => {});
