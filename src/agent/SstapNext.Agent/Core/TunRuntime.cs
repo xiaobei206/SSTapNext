@@ -85,7 +85,9 @@ internal static class TunRuntime
                     singBoxProcessRunning = process.SingBoxRunning,
                     processName = process.ProcessName,
                     otherAgentProcessCheckComplete = otherAgents.CheckComplete,
-                    otherAgentProcessCount = otherAgents.Count
+                    otherAgentProcessCount = otherAgents.Count,
+                    agentProcessCheckComplete = otherAgents.CheckComplete,
+                    activeAgentProcessCount = otherAgents.Count
                 }, new JsonSerializerOptions(JsonSerializerDefaults.Web)));
                 return 0;
             }
@@ -110,7 +112,9 @@ internal static class TunRuntime
                 expectedTunAddress = ExpectedTunAddress,
                 operationallyActive = adapter.OperationallyActive,
                 otherAgentProcessCheckComplete = otherAgents.CheckComplete,
-                otherAgentProcessCount = otherAgents.Count
+                otherAgentProcessCount = otherAgents.Count,
+                agentProcessCheckComplete = otherAgents.CheckComplete,
+                activeAgentProcessCount = otherAgents.Count
             }, new JsonSerializerOptions(JsonSerializerDefaults.Web)));
             return 0;
         }
