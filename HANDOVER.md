@@ -1,10 +1,10 @@
-## 2026-11-08 P0：v0.3.16 TUN 孤儿会话恢复缺陷 — 修复实现中
+## 2026-11-08 P0：v0.3.16 TUN 孤儿会话恢复缺陷 — 最终修复目标 v0.3.18
 
 - 用户实机现象：启动时 `遗留 TUN 会话在 30 秒内没有完成安全断开`。会话 `7a46c8be00be23d639ad360db87e4759` 的 status 仍为 `running`，corePid 4968；进程查询没有 Agent/sing-box。Agent 只读核验确认 PID 不存在，四个 SSTap Next `sing-tun Tunnel` 对象均 `NotPresent`、无地址、无检查错误。
 - 明确排除旧版 SSTap 网卡 `SSTAP 1 / TAP-Windows Adapter V9`，本次代码只能处理 SSTap Next 自己的 `SSTap Next` / `sing-tun Tunnel*` 接口，不可操作旧 TAP 网卡。
 - 根因：恢复逻辑一律写 `stop.signal` 并等待 30 秒；Agent 已退出时无人消费信号。另有 Agent 清理预算 18s + 18s 大于 30s 的超时设计缺陷。
 - 设计文档先行提交：`docs/TUN-ORPHAN-RECOVERY-0.3.17.md`，commit `da9e79853bf31d004cd7ba65cb2c783e9eef1a12`。目标版本 0.3.17，main-only，不开分支/PR。
-- 设计、交接、开发日志、CHANGELOG 和 0.3.17 release notes 已先行同步。实现已提交到 main：`src/shared/tun-controller.cjs` 增加仅在双重核验确认旧核心 PID 不存在、相关 SSTap Next sing-tun 接口全部非活动且无 IP 时恢复运行中孤儿会话；Agent 正常停止等待由 30 秒调至 45 秒；增加正向/负向回归测试。版本字段已更新为 0.3.17。测试与 Actions 尚未核验；真实 Windows TUN 验收 NOT RUN。不得仅因超时解除锁，不删除任何网卡/驱动/路由/DNS。
+- v0.3.17 已由 Actions 自动发布，但它的构建早于最终 Agent 存活检查补丁；保留既有资产，不覆盖，不建议用于本故障修复。完整修复版本改为 v0.3.18；设计/发布文档为 `docs/TUN-ORPHAN-RECOVERY-0.3.18.md`、`docs/RELEASE-0.3.18.md`。设计、交接、开发日志、CHANGELOG 和 release notes 已先行同步。实现已提交到 main：`src/shared/tun-controller.cjs` 增加仅在双重核验确认旧核心 PID 不存在、相关 SSTap Next sing-tun 接口全部非活动且无 IP 时恢复运行中孤儿会话；Agent 正常停止等待由 30 秒调至 45 秒；增加正向/负向回归测试。版本字段已更新为 0.3.17。测试与 Actions 尚未核验；真实 Windows TUN 验收 NOT RUN。不得仅因超时解除锁，不删除任何网卡/驱动/路由/DNS。
 
 ---
 
