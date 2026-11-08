@@ -9,6 +9,13 @@
 上一正式版本：**0.3.15**  
 > 本文件是新对话的第一入口；如果本文件与 GitHub 实际状态不一致，以实时仓库、Actions 和 Release 为准，并先修正文档。
 
+## 2026-11-08 当前 P0：TUN 孤儿会话恢复
+
+- 用户在 v0.3.16 启动时遇到遗留会话 30 秒超时。实机证据：status 仍为 running、corePid 4968，但 Agent/sing-box 进程均不存在；Agent 双重枚举报告所有 SSTap Next `sing-tun Tunnel` 相关对象均 NotPresent、无 IP、无检查错误。
+- 与本故障无关的旧版 `SSTAP 1 / TAP-Windows Adapter V9` 必须完全排除，不可修改或删除。
+- 设计先行文档：`docs/TUN-ORPHAN-RECOVERY-0.3.17.md`。目标正式修复版本 0.3.17：仅在双重核验确认旧核心 PID 不存在且所有 SSTap Next TUN 接口均不活动/无地址后，归档孤儿状态并安全解除锁；任何歧义仍 fail-closed。桌面端停止等待上限从 30 秒调整为至少 45 秒，以覆盖 Agent 18+18 秒预算。
+- 当前状态：设计文档已提交；代码修复尚未开始。继续先同步交接/开发日志，再实现与测试。
+
 ---
 
 ## 0. 接手时必须遵守的工作方式
